@@ -46,6 +46,18 @@ export function matchesTerm(name: string, term: string): boolean {
   return t.length > customer.length && n.startsWith(t);
 }
 
+/**
+ * Chips (OR) narrowed by what is being typed (AND), so typing inside a group searches AMONG its customers.
+ * A trailing space ("db ") means "exactly this customer"; otherwise the text is a prefix ("n" = everything starting with n).
+ */
+export function matchesFilter(name: string, terms: string[], draft: string): boolean {
+  if (!matchesWatch(name, terms)) return false;
+  const d = draft.trim().toLowerCase().replace(/\*+$/, '');
+  if (!d) return true;
+  if (/\s$/.test(draft)) return customerOf(name) === d || matchesTerm(name, d);
+  return name.toLowerCase().startsWith(d);
+}
+
 /** No terms = everything; otherwise the name must match at least one term. */
 export function matchesWatch(name: string, terms: string[]): boolean {
   return terms.length === 0 || terms.some((t) => matchesTerm(name, t));

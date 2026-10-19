@@ -14,7 +14,7 @@ import { coverageSeries, isMonitorable } from './lib/history';
 import { loadGroups, saveGroups, type WatchGroup } from './lib/watchlist';
 import { Panel, StatPanel, CoverageChart, Gauge } from './components/panels';
 import WatchlistSearch, { type CustomerSuggestion } from './components/WatchlistSearch';
-import { matchesWatch, envOf, customerOf, type EnvName } from './lib/watchMatch';
+import { matchesWatch, matchesFilter, envOf, customerOf, type EnvName } from './lib/watchMatch';
 import AccountTable from './components/AccountTable';
 import DetailDrawer from './components/DetailDrawer';
 import NeedsIpPanel from './components/NeedsIpPanel';
@@ -180,15 +180,13 @@ export default function App() {
   const today = data?.today ?? '';
 
   // Watchlist (union of terms) narrows the whole dashboard scope.
-  const liveTerms = useMemo(() => {
-    const d = draft.trim().toLowerCase().replace(/\*+$/, '');
-    return d ? [...terms, `${d}*`] : terms;
-  }, [terms, draft]);
+  // Chips are the group (OR); whatever is typed on top narrows WITHIN that group (AND).
+  const filtering = terms.length > 0 || draft.trim() !== '';
 
   const watched = useMemo(() => {
-    if (liveTerms.length === 0) return results;
-    return results.filter((r) => matchesWatch(r.accountName, liveTerms));
-  }, [results, liveTerms]);
+    if (!filtering) return results;
+    return results.filter((r) => matchesFilter(r.accountName, terms, draft));
+  }, [results, terms, draft, filtering]);
 
   // PROD / UAT / DEV selected -> the stat cards, Health today and the coverage chart describe just that
   // environment (no environment selected = every account in the watchlist).
@@ -236,25 +234,26 @@ export default function App() {
 
   // The same watchlist / groups narrow the Cloud Instances and Databases tabs (matched on customer, see watchMatch.ts).
   const botsWatched = useMemo<BotsResponse | null>(() => {
-    if (!bots.data || liveTerms.length === 0) return bots.data;
+    if (!bots.data || !filtering) return bots.data;
     return {
       ...bots.data,
-      cloudServices: bots.data.cloudServices.filter((c) => matchesWatch(c.name, liveTerms)),
-      instances: bots.data.instances.filter((i) => matchesWatch(i.cloudService, liveTerms)),
+      cloudServices: bots.data.cloudServices.filter((c) => matchesFilter(c.name, terms, draft)),
+      instances: bots.data.instances.filter((i) => matchesFilter(i.cloudService, terms, draft)),
     };
-  }, [bots.data, liveTerms]);
+  }, [bots.data, terms, draft, filtering]);
   const dbsWatched = useMemo<DatabasesResponse | null>(() => {
-    if (!dbs.data || liveTerms.length === 0) return dbs.data;
-    return { ...dbs.data, databases: dbs.data.databases.filter((d) => matchesWatch(d.server, liveTerms)) };
-  }, [dbs.data, liveTerms]);
+    if (!dbs.data || !filtering) return dbs.data;
+    return { ...dbs.data, databases: dbs.data.databases.filter((d) => matchesFilter(d.server, terms, draft)) };
+  }, [dbs.data, terms, draft, filtering]);
 
   // Every customer we know about (from accounts, bots and databases), for the search suggestions.
   const suggestions = useMemo<CustomerSuggestion[]>(() => {
-    const m = new Map<string, { srd: number; bots: number; dbs: Set<string> }>();
+    const m = new Map<string, { srd: number; bots: number; dbs: Set<string>; inGroup: boolean }>();
     const at = (name: string) => {
       const code = customerOf(name);
       let e = m.get(code);
-      if (!e) m.set(code, (e = { srd: 0, bots: 0, dbs: new Set() }));
+      if (!e) m.set(code, (e = { srd: 0, bots: 0, dbs: new Set(), inGroup: false }));
+      if (terms.length > 0 && matchesWatch(name, terms)) e.inGroup = true;
       return e;
     };
     for (const r of results) at(r.accountName).srd++;
@@ -264,6 +263,7 @@ export default function App() {
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([code, e]) => ({
         code,
+        inFilter: terms.length === 0 || e.inGroup,
         detail: [
           e.srd ? `${e.srd} SRD` : '',
           e.bots ? `${e.bots} bot${e.bots === 1 ? '' : 's'}` : '',
@@ -272,7 +272,7 @@ export default function App() {
           .filter(Boolean)
           .join(' · '),
       }));
-  }, [results, bots.data, dbs.data]);
+  }, [results, bots.data, dbs.data, terms]);
 
   // ...then the environment filter (PROD / UAT / DEV) on top of the watchlist.
   const botsShown = useMemo<BotsResponse | null>(() => {

@@ -7,6 +7,8 @@ export interface CustomerSuggestion {
   code: string;
   /** e.g. "1 SRD · 3 bots · 3 dbs". */
   detail: string;
+  /** True when this customer is already inside the current group / chips (or there is no group yet). */
+  inFilter: boolean;
 }
 
 /**
@@ -47,8 +49,21 @@ export default function WatchlistSearch({
   };
 
   const q = draft.trim().toLowerCase();
-  const matches = q ? suggestions.filter((s) => s.code.startsWith(q)).slice(0, 14) : [];
-  const exact = suggestions.some((s) => s.code === q);
+  const scoped = terms.length > 0; // a group is active: typing narrows within it
+  const inMatches = q && scoped ? suggestions.filter((s) => s.inFilter && s.code.startsWith(q)).slice(0, 14) : [];
+  const addMatches = q ? suggestions.filter((s) => (!scoped || !s.inFilter) && s.code.startsWith(q)).slice(0, 14) : [];
+  // one flat list so arrow keys walk "in this filter" first, then "add to filter"
+  const rows = [
+    ...inMatches.map((s) => ({ s, kind: 'narrow' as const })),
+    ...addMatches.map((s) => ({ s, kind: 'add' as const })),
+  ];
+  const exactOutside = addMatches.some((s) => s.code === q);
+  const exactAny = suggestions.some((s) => s.code === q);
+
+  const choose = (row: (typeof rows)[number]) => {
+    if (row.kind === 'add') addTerm(row.s.code);
+    else setDraft(`${row.s.code} `); // narrow to exactly this customer (trailing space = exact)
+  };
 
   const addTerm = (raw: string) => {
     const t = raw.trim().toLowerCase();
@@ -58,20 +73,22 @@ export default function WatchlistSearch({
   const removeTerm = (t: string) => setTerms(terms.filter((x) => x !== t));
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'ArrowDown' && matches.length) {
+    if (e.key === 'ArrowDown' && rows.length) {
       e.preventDefault();
-      setHi((i) => (i + 1) % matches.length);
-    } else if (e.key === 'ArrowUp' && matches.length) {
+      setHi((i) => (i + 1) % rows.length);
+    } else if (e.key === 'ArrowUp' && rows.length) {
       e.preventDefault();
-      setHi((i) => (i <= 0 ? matches.length - 1 : i - 1));
+      setHi((i) => (i <= 0 ? rows.length - 1 : i - 1));
     } else if (e.key === 'Escape') {
       setDraft('');
     } else if (e.key === 'Enter' || e.key === ',') {
       e.preventDefault();
       if (!q) return;
-      if (hi >= 0 && matches[hi]) addTerm(matches[hi]!.code);
-      else if (exact) addTerm(q);
-      else addTerm(`${q.replace(/\*+$/, '')}*`); // partial name -> "n*" = everything starting with n
+      if (hi >= 0 && rows[hi]) choose(rows[hi]!);
+      else if (!scoped) {
+        if (exactAny) addTerm(q);
+        else addTerm(`${q.replace(/\*+$/, '')}*`); // partial name -> "n*" = everything starting with n
+      } else if (exactOutside) addTerm(q); // inside a group, Enter only adds an exact customer that isn't in it yet
     } else if (e.key === 'Backspace' && !draft && terms.length) {
       removeTerm(terms[terms.length - 1]!);
     }
@@ -129,7 +146,7 @@ export default function WatchlistSearch({
           onKeyDown={onKeyDown}
           onFocus={() => setFocus(true)}
           onBlur={() => setTimeout(() => setFocus(false), 120)}
-          placeholder={terms.length ? 'add customer…' : 'search customers… type a letter, e.g. n, adc, atd'}
+          placeholder={terms.length ? 'search within these customers…  (or add another)' : 'search customers… type a letter, e.g. n, adc, atd'}
           autoComplete="off"
           spellCheck={false}
         />
@@ -140,29 +157,46 @@ export default function WatchlistSearch({
 
       {focus && q && (
         <div className="wl-suggest" role="listbox">
-          {matches.length === 0 ? (
-            <div className="wl-empty">No customer starts with “{draft.trim()}”.</div>
+          {rows.length === 0 ? (
+            <div className="wl-empty">
+              No customer starts with “{draft.trim()}”{scoped ? ' — in this filter or elsewhere' : ''}.
+            </div>
           ) : (
             <>
-              <div className="wl-suggest-hd">
-                {matches.length === 14 ? '14+' : matches.length} customer{matches.length === 1 ? '' : 's'} starting with “{q}” — click to add
-              </div>
-              {matches.map((s, i) => (
-                <button
-                  key={s.code}
-                  type="button"
-                  role="option"
-                  aria-selected={i === hi}
-                  className={`wl-suggest-item ${i === hi ? 'wl-suggest-on' : ''}`}
-                  onMouseDown={(e) => e.preventDefault()}
-                  onMouseEnter={() => setHi(i)}
-                  onClick={() => addTerm(s.code)}
-                >
-                  <span className="mono wl-suggest-code">{s.code.toUpperCase()}</span>
-                  <span className="wl-suggest-detail">{s.detail}</span>
-                </button>
+              {inMatches.length > 0 && (
+                <div className="wl-suggest-hd">
+                  In this filter · {inMatches.length} — click to focus on one
+                </div>
+              )}
+              {rows.map((row, i) => (
+                <div key={`${row.kind}-${row.s.code}`}>
+                  {row.kind === 'add' && i === inMatches.length && scoped && (
+                    <div className="wl-suggest-hd">Add to filter · {addMatches.length} — click to include</div>
+                  )}
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={i === hi}
+                    className={`wl-suggest-item ${i === hi ? 'wl-suggest-on' : ''}`}
+                    onMouseDown={(e) => e.preventDefault()}
+                    onMouseEnter={() => setHi(i)}
+                    onClick={() => choose(row)}
+                  >
+                    <span className="mono wl-suggest-code">{row.s.code.toUpperCase()}</span>
+                    <span className="wl-suggest-detail">{row.s.detail}</span>
+                    {row.kind === 'add' && scoped && <span className="wl-suggest-add">＋ add</span>}
+                  </button>
+                </div>
               ))}
-              <div className="wl-suggest-ft">Enter on “{q}” adds <span className="mono">{q}*</span> (everything starting with it)</div>
+              <div className="wl-suggest-ft">
+                {scoped ? (
+                  <>Typing narrows your current filter. Add a space (“{q} ”) for exactly that customer.</>
+                ) : (
+                  <>
+                    Enter on “{q}” adds <span className="mono">{q}*</span> (everything starting with it)
+                  </>
+                )}
+              </div>
             </>
           )}
         </div>
