@@ -852,3 +852,23 @@ details > summary::-webkit-details-marker { display: none; }
 [data-theme='light'] .prd-bad .prd-val, [data-theme='light'] .prd-ok .prd-val,
 [data-theme='light'] .prd-bad .prd-label, [data-theme='light'] .prd-ok .prd-label,
 [data-theme='light'] .prd-bad .prd-go, [data-theme='light'] .prd-ok .prd-go { color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2); }
+
+
+/* ── Layout: normal view as it always was; full width only while in fullscreen ─────────────────────
+   One gutter value drives the page padding and the header's edge-to-edge bleed, so they always line up.
+   `html[data-fullscreen='true']` is set by useFullscreen (button or F11). */
+:root { --gutter: clamp(8px, 2vw, 20px); }
+.page { padding: 16px; }
+.dash { max-width: 1640px; padding: 4px var(--gutter) 32px; }
+.hdr { margin: 0 calc(-1 * var(--gutter)); padding: 14px var(--gutter) 12px; }
+html[data-fullscreen='true'] { --gutter: clamp(12px, 1.6vw, 28px); }
+html[data-fullscreen='true'] .page { padding: 0; }
+html[data-fullscreen='true'] .dash { max-width: none; }
+@media (max-width: 760px) { :root, html[data-fullscreen='true'] { --gutter: 10px; } }
+
+.fs-wrap { position: relative; display: inline-flex; }
+.fs-hint {
+  position: absolute; top: calc(100% + 10px); right: 0; z-index: 60; white-space: nowrap; padding: 8px 12px; border-radius: 10px;
+  font-size: 12px; font-weight: 600; color: var(--text-1); background: var(--card); border: 1px solid var(--border-strong); box-shadow: var(--shadow);
+  animation: fade-in 0.2s ease;
+}

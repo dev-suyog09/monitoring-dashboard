@@ -6,6 +6,7 @@ import { useOnDemand } from './lib/useOnDemand';
 import { isDownState } from './lib/instanceState';
 import { useAlerts } from './lib/useAlerts';
 import { unlockAudio } from './lib/chime';
+import { useFullscreen } from './lib/useFullscreen';
 import { NotificationBell, Toasts } from './components/Notifications';
 import SidePanel from './components/SidePanel';
 import { detectEnv } from './lib/ui';
@@ -61,6 +62,7 @@ export default function App() {
   const { reset: resetBots } = bots;
   // Bell + pop-ups: raised when a checked instance newly goes Stopped / Unresponsive.
   const alerts = useAlerts(bots.data);
+  const fullscreen = useFullscreen();
   const { reset: resetDbs } = dbs;
   const restartingRef = useRef(false);
 
@@ -431,6 +433,25 @@ export default function App() {
               <button className="icirc" onClick={toggleMode} title="Toggle light / dark" aria-label="Toggle theme">
                 {mode === 'dark' ? '☀️' : '🌙'}
               </button>
+              {fullscreen.supported && (
+                <span className="fs-wrap">
+                <button
+                  className="icirc"
+                  onClick={() => void fullscreen.toggle()}
+                  title={fullscreen.active ? 'Exit full screen (Esc)' : 'Full screen'}
+                  aria-label={fullscreen.active ? 'Exit full screen' : 'Enter full screen'}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    {fullscreen.active ? (
+                      <path d="M6 1.5V6H1.5M10 14.5V10h4.5M10 1.5V6h4.5M6 14.5V10H1.5" />
+                    ) : (
+                      <path d="M1.5 6V1.5H6M14.5 6V1.5H10M1.5 10v4.5H6M14.5 10v4.5H10" />
+                    )}
+                  </svg>
+                </button>
+                {fullscreen.blocked && <span className="fs-hint">Your browser blocked full screen here — press F11</span>}
+                </span>
+              )}
             </div>
           </div>
 
