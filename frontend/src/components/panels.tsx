@@ -1,4 +1,5 @@
-import type { ReactNode } from 'react';
+import { useId, useState, type ReactNode } from 'react';
+import { useCountUp } from '../lib/useCountUp';
 import type { DayPoint } from '../lib/history';
 
 /** A Grafana-style panel: title strip on top, body below. */
@@ -53,9 +54,26 @@ export function Sparkline({
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden>
       <polygon points={`0,${height} ${pts.join(' ')} ${width},${height}`} fill={color} opacity={0.14} />
-      <polyline points={pts.join(' ')} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />
+      <polyline points={pts.join(' ')} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" pathLength={1} className="draw" />
     </svg>
   );
+}
+
+/** A number that counts up; "249/259"-style values animate both halves. */
+function CountNum({ n }: { n: number }) {
+  return <>{Math.round(useCountUp(n))}</>;
+}
+function AnimatedValue({ value }: { value: number | string }) {
+  if (typeof value === 'number') return <CountNum n={value} />;
+  const m = /^(\d+)\/(\d+)$/.exec(value);
+  if (m) {
+    return (
+      <>
+        <CountNum n={Number(m[1])} />/<CountNum n={Number(m[2])} />
+      </>
+    );
+  }
+  return <>{value}</>;
 }
 
 /** Big-number stat panel, optionally clickable (to filter) and with a sparkline. */
@@ -86,7 +104,7 @@ export function StatPanel({
     >
       <div className="stat-label">{label}</div>
       <div className="stat-val mono" style={{ color: scope ? 'var(--c-fg)' : 'var(--text-1)' }}>
-        {value}
+        <AnimatedValue value={value} />
       </div>
       {spark && spark.length > 0 ? (
         <Sparkline values={spark} color={sparkColor ?? 'var(--c)'} />
@@ -97,8 +115,14 @@ export function StatPanel({
   );
 }
 
-/** Time-series area chart of daily archive coverage over the last N days. */
+/**
+ * Daily archive coverage over the last N days. The line draws itself, the area sweeps in, the points pop in one
+ * by one, and hovering shows a guide line with that day's numbers. It replays whenever the data changes (e.g. a filter).
+ */
 export function CoverageChart({ series, monitorable }: { series: DayPoint[]; monitorable: number }) {
+  const uid = useId().replace(/:/g, '');
+  const [hover, setHover] = useState<number | null>(null);
+
   const W = 760;
   const H = 240;
   const padL = 30;
@@ -115,57 +139,185 @@ export function CoverageChart({ series, monitorable }: { series: DayPoint[]; mon
   const line = series.map((d, i) => `${x(i).toFixed(1)},${y(d.covered).toFixed(1)}`).join(' ');
   const area = `${padL},${(padT + plotH).toFixed(1)} ${line} ${(padL + plotW).toFixed(1)},${(padT + plotH).toFixed(1)}`;
   const gridVals = [0, Math.round(maxY / 2), maxY];
+  const sig = `${monitorable}|${series.map((d) => d.covered).join(',')}`; // replay the animation when this changes
+
+  const onMove = (e: React.MouseEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const px = ((e.clientX - r.left) / r.width) * W;
+    let best = 0;
+    series.forEach((_, i) => {
+      if (Math.abs(x(i) - px) < Math.abs(x(best) - px)) best = i;
+    });
+    setHover(best);
+  };
+
+  const h = hover !== null ? series[hover] : null;
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" height="auto" role="img" aria-label="Daily archive coverage, last 7 days" style={{ display: 'block' }}>
-      {gridVals.map((g) => (
-        <g key={g}>
-          <line x1={padL} x2={padL + plotW} y1={y(g)} y2={y(g)} stroke="var(--border)" strokeWidth={1} />
-          <text x={padL - 6} y={y(g) + 3} textAnchor="end" fontSize={10} fill="var(--text-3)" className="mono">
-            {g}
-          </text>
+    <div className="cov-wrap" style={{ position: 'relative' }}>
+      <svg
+        key={sig}
+        viewBox={`0 0 ${W} ${H}`}
+        width="100%"
+        height="auto"
+        role="img"
+        aria-label="Daily archive coverage, last 7 days"
+        style={{ display: 'block' }}
+        onMouseMove={onMove}
+        onMouseLeave={() => setHover(null)}
+      >
+        <defs>
+          <linearGradient id={`${uid}-fill`} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stopColor="var(--ok)" stopOpacity="0.38" />
+            <stop offset="1" stopColor="var(--ok)" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id={`${uid}-stroke`} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0" stopColor="var(--accent)" />
+            <stop offset="1" stopColor="var(--ok)" />
+          </linearGradient>
+          <clipPath id={`${uid}-clip`}>
+            <rect className="reveal" x={0} y={0} width={W} height={H} />
+          </clipPath>
+        </defs>
+
+        {gridVals.map((g) => (
+          <g key={g}>
+            <line x1={padL} x2={padL + plotW} y1={y(g)} y2={y(g)} stroke="var(--border)" strokeWidth={1} />
+            <text x={padL - 6} y={y(g) + 3} textAnchor="end" fontSize={10} fill="var(--text-3)" className="mono">
+              {g}
+            </text>
+          </g>
+        ))}
+        {/* reference line: total monitorable accounts (marching dashes) */}
+        <line
+          x1={padL}
+          x2={padL + plotW}
+          y1={y(monitorable)}
+          y2={y(monitorable)}
+          stroke="var(--accent-2)"
+          strokeWidth={1}
+          strokeDasharray="4 4"
+          opacity={0.75}
+          className="march"
+        />
+
+        <g clipPath={`url(#${uid}-clip)`}>
+          <polygon points={area} fill={`url(#${uid}-fill)`} />
         </g>
-      ))}
-      {/* reference line: total monitorable accounts */}
-      <line x1={padL} x2={padL + plotW} y1={y(monitorable)} y2={y(monitorable)} stroke="var(--accent-2)" strokeWidth={1} strokeDasharray="4 4" opacity={0.7} />
-      <polygon points={area} fill="var(--ok)" opacity={0.15} />
-      <polyline points={line} fill="none" stroke="var(--ok)" strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" />
-      {series.map((d, i) => (
-        <g key={d.date}>
-          <circle cx={x(i)} cy={y(d.covered)} r={3} fill="var(--ok)" />
-          <title>{`${d.date}: ${d.covered}/${monitorable} archived`}</title>
-          <text x={x(i)} y={H - 8} textAnchor="middle" fontSize={10} fill="var(--text-3)" className="mono">
-            {d.date.slice(5)}
-          </text>
-        </g>
-      ))}
-    </svg>
+        <polyline
+          points={line}
+          fill="none"
+          stroke={`url(#${uid}-stroke)`}
+          strokeWidth={2.75}
+          strokeLinejoin="round"
+          strokeLinecap="round"
+          pathLength={1}
+          className="draw cov-line"
+        />
+
+        {h && hover !== null && (
+          <line x1={x(hover)} x2={x(hover)} y1={padT} y2={padT + plotH} stroke="var(--accent)" strokeWidth={1} strokeDasharray="3 3" opacity={0.7} />
+        )}
+
+        {series.map((d, i) => (
+          <g key={d.date}>
+            <circle
+              className="pt"
+              style={{ animationDelay: `${0.35 + i * 0.13}s` }}
+              cx={x(i)}
+              cy={y(d.covered)}
+              r={hover === i ? 5.5 : 3.5}
+              fill="var(--ok)"
+              stroke="var(--card)"
+              strokeWidth={1.5}
+            />
+            <text x={x(i)} y={H - 8} textAnchor="middle" fontSize={10} fill={hover === i ? 'var(--text-1)' : 'var(--text-3)'} className="mono">
+              {d.date.slice(5)}
+            </text>
+          </g>
+        ))}
+        <rect x={padL} y={padT} width={plotW} height={plotH} fill="transparent" />
+      </svg>
+
+      {h && hover !== null && (
+        <div className="cov-tip mono" style={{ left: `${(x(hover) / W) * 100}%`, top: `${(y(h.covered) / H) * 100}%` }}>
+          <strong>{h.date}</strong>
+          <span>
+            {h.covered}/{monitorable} archived
+          </span>
+        </div>
+      )}
+    </div>
   );
 }
 
-/** Radial health gauge (0–100%). */
+/**
+ * Radial health gauge (0–100%): the arc sweeps in with the number counting up, a gradient stroke that glows
+ * (and breathes), tick marks that light up as it fills, a dot riding the arc tip and a slowly rotating outer ring.
+ */
 export function Gauge({ pct, sub }: { pct: number; sub: string }) {
+  const uid = useId().replace(/:/g, '');
+  const v = useCountUp(pct, 1200);
   const r = 54;
   const circ = 2 * Math.PI * r;
-  const dash = (pct / 100) * circ;
-  const color = pct >= 90 ? 'var(--ok)' : pct >= 70 ? 'var(--warn)' : 'var(--err)';
+  const dash = (v / 100) * circ;
+  const level = pct >= 90 ? 'ok' : pct >= 70 ? 'warn' : 'err';
+  const color = `var(--${level})`;
+  const theta = ((-90 + (v / 100) * 360) * Math.PI) / 180;
+  const tipX = 74 + r * Math.cos(theta);
+  const tipY = 74 + r * Math.sin(theta);
+  const TICKS = 48;
+
   return (
     <div className="gauge-wrap">
-      <svg width={148} height={148} viewBox="0 0 148 148" role="img" aria-label={`${pct}% healthy`}>
+      <svg width={168} height={168} viewBox="0 0 148 148" role="img" aria-label={`${pct}% healthy`} style={{ overflow: 'visible' }}>
+        <defs>
+          <linearGradient id={`${uid}-arc`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={color} stopOpacity="0.55" />
+            <stop offset="1" stopColor={color} />
+          </linearGradient>
+        </defs>
+
+        <g className="gauge-spin">
+          <circle cx={74} cy={74} r={71} fill="none" stroke="var(--border-strong)" strokeWidth={1} strokeDasharray="2 7" opacity={0.7} />
+        </g>
+
+        {Array.from({ length: TICKS }, (_, i) => {
+          const a = (i / TICKS) * Math.PI * 2 - Math.PI / 2;
+          const on = (i / TICKS) * 100 < v;
+          return (
+            <line
+              key={i}
+              x1={74 + 63 * Math.cos(a)}
+              y1={74 + 63 * Math.sin(a)}
+              x2={74 + 67 * Math.cos(a)}
+              y2={74 + 67 * Math.sin(a)}
+              stroke={on ? color : 'var(--border-strong)'}
+              strokeWidth={on ? 1.8 : 1}
+              opacity={on ? 0.95 : 0.55}
+              strokeLinecap="round"
+            />
+          );
+        })}
+
         <circle cx={74} cy={74} r={r} fill="none" stroke="var(--card-2)" strokeWidth={12} />
         <circle
+          className="gauge-arc"
+          style={{ ['--g' as string]: color }}
           cx={74}
           cy={74}
           r={r}
           fill="none"
-          stroke={color}
+          stroke={`url(#${uid}-arc)`}
           strokeWidth={12}
           strokeLinecap="round"
           strokeDasharray={`${dash} ${circ}`}
           transform="rotate(-90 74 74)"
         />
-        <text x={74} y={72} textAnchor="middle" fontSize={30} fontWeight={800} fill="var(--text-1)" className="mono">
-          {pct}%
+        {v > 1 && <circle cx={tipX} cy={tipY} r={4} fill="#fff" opacity={0.95} style={{ filter: `drop-shadow(0 0 5px ${color})` }} />}
+
+        <text x={74} y={73} textAnchor="middle" fontSize={30} fontWeight={800} fill="var(--text-1)" className="mono">
+          {Math.round(v)}%
         </text>
         <text x={74} y={92} textAnchor="middle" fontSize={11} fill="var(--text-3)">
           healthy

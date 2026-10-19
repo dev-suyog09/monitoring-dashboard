@@ -4,6 +4,10 @@ import { fetchCheck, fetchHealth, restartBackend, fetchBots, checkBots, fetchDat
 import { findNeedsIp } from './lib/needsIp';
 import { useOnDemand } from './lib/useOnDemand';
 import { isDownState } from './lib/instanceState';
+import { useAlerts } from './lib/useAlerts';
+import { unlockAudio } from './lib/chime';
+import { NotificationBell, Toasts } from './components/Notifications';
+import SidePanel from './components/SidePanel';
 import { detectEnv } from './lib/ui';
 import { useTheme } from './lib/theme';
 import { coverageSeries, isMonitorable } from './lib/history';
@@ -35,6 +39,9 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
   const [filter, setFilter] = useState<Filter>('all');
+  // Set by clicking the "at risk" box: the accounts table then lists just the at-risk accounts (missing today or error).
+  const [atRiskOnly, setAtRiskOnly] = useState(false);
+  const tableRef = useRef<HTMLDivElement>(null);
   const [terms, setTerms] = useState<string[]>([]);
   // What is being typed right now: filters live (everything starting with it) before it becomes a chip.
   const [draft, setDraft] = useState('');
@@ -44,6 +51,7 @@ export default function App() {
   const abortRef = useRef<AbortController | null>(null);
   const [restartMsg, setRestartMsg] = useState<string | null>(null);
   const [showNeeds, setShowNeeds] = useState(false);
+  const [confirmRestart, setConfirmRestart] = useState(false);
   const [view, setView] = useState<View>('customers');
   // Environment filter shared by the Cloud Instances and Databases tabs.
   const [infraEnv, setInfraEnv] = useState<EnvName | 'all'>('all');
@@ -51,6 +59,8 @@ export default function App() {
   const bots = useOnDemand<BotsResponse, BotScope>(fetchBots, checkBots, ALL_BOTS);
   const dbs = useOnDemand<DatabasesResponse, DbScope>(fetchDatabases, checkDatabases, ALL_DBS);
   const { reset: resetBots } = bots;
+  // Bell + pop-ups: raised when a checked instance newly goes Stopped / Unresponsive.
+  const alerts = useAlerts(bots.data);
   const { reset: resetDbs } = dbs;
   const restartingRef = useRef(false);
 
@@ -80,12 +90,6 @@ export default function App() {
   /** Restart the backend (new process: fresh IP lookup, account keys and scan), then load the new data. */
   const restart = useCallback(async () => {
     if (restartingRef.current) return;
-    if (
-      !window.confirm(
-        'Restart the backend and fetch fresh data?\n\nThe dashboard will show "warming up" for about 1-4 minutes.',
-      )
-    )
-      return;
     restartingRef.current = true;
     abortRef.current?.abort();
     setError(null);
@@ -145,6 +149,26 @@ export default function App() {
     return () => clearTimeout(t);
   }, [data, load]);
 
+  // Browsers only allow sound after the user has touched the page: unlock audio on the first click / key press.
+  useEffect(() => {
+    const unlock = () => {
+      unlockAudio();
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+    window.addEventListener('pointerdown', unlock);
+    window.addEventListener('keydown', unlock);
+    return () => {
+      window.removeEventListener('pointerdown', unlock);
+      window.removeEventListener('keydown', unlock);
+    };
+  }, []);
+
+  // On narrow screens the tab row scrolls sideways: keep the selected tab in view.
+  useEffect(() => {
+    document.querySelector('.tab-on')?.scrollIntoView({ inline: 'center', block: 'nearest', behavior: 'auto' });
+  }, [view]);
+
   const { open: openBots } = bots;
   const { open: openDbs } = dbs;
   useEffect(() => {
@@ -193,6 +217,22 @@ export default function App() {
       ).length,
     };
   }, [scoped, envScope]);
+
+  // Accounts counted by the "at risk" box: the selected environment, or PRD when none is selected.
+  const atRiskList = useMemo(
+    () =>
+      scoped.filter(
+        (r) =>
+          (envScope ? true : /prd|prod/i.test(r.accountName)) && (r.status === 'missing_today' || r.status === 'error'),
+      ),
+    [scoped, envScope],
+  );
+  const showAtRisk = () => {
+    if (atRiskList.length === 0) return;
+    setAtRiskOnly(true);
+    setFilter((f) => (f === 'PRD' || f === 'UAT' || f === 'DEV' ? f : 'all')); // keep an environment filter, drop a status one
+    setTimeout(() => tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
+  };
 
   // The same watchlist / groups narrow the Cloud Instances and Databases tabs (matched on customer, see watchMatch.ts).
   const botsWatched = useMemo<BotsResponse | null>(() => {
@@ -297,6 +337,7 @@ export default function App() {
 
   // Table rows: watchlist scope, then the active status/env filter.
   const rows = useMemo(() => {
+    if (atRiskOnly) return atRiskList;
     switch (filter) {
       case 'healthy':
       case 'missing_today':
@@ -310,7 +351,7 @@ export default function App() {
       default:
         return watched;
     }
-  }, [watched, filter]);
+  }, [watched, filter, atRiskOnly, atRiskList]);
 
   const selectedAccount: CheckResult | null = selected
     ? (results.find((r) => r.accountName === selected) ?? null)
@@ -370,6 +411,23 @@ export default function App() {
                   )}
                 </span>
               </div>
+              <NotificationBell
+                items={alerts.items}
+                unread={alerts.unread}
+                onOpenItem={(item) => {
+                  alerts.markRead(item.id);
+                  setView('bots');
+                }}
+                onMarkAllRead={alerts.markAllRead}
+                onClear={alerts.clear}
+                desktop={alerts.desktop}
+                desktopSupported={alerts.desktopSupported}
+                onEnableDesktop={() => void alerts.enableDesktop()}
+                onDisableDesktop={alerts.disableDesktop}
+                sound={alerts.sound}
+                onToggleSound={alerts.toggleSound}
+                onPreviewSound={alerts.previewSound}
+              />
               <button className="icirc" onClick={toggleMode} title="Toggle light / dark" aria-label="Toggle theme">
                 {mode === 'dark' ? '☀️' : '🌙'}
               </button>
@@ -402,7 +460,7 @@ export default function App() {
             </button>
             <button
               className="pill"
-              onClick={restart}
+              onClick={() => setConfirmRestart(true)}
               disabled={!!restartMsg}
               title="Restart the backend and fetch fresh data (takes 1-4 minutes)"
             >
@@ -415,6 +473,7 @@ export default function App() {
                 else if (view === 'bots') void bots.check('all', {});
                 else if (view === 'dbs') void dbs.check('all', {});
                 else {
+                  void load(true); // archive
                   void bots.check('all', {});
                   void dbs.check('all', {});
                 }
@@ -427,7 +486,7 @@ export default function App() {
                     ? bots.checking !== null || bots.loading
                     : view === 'dbs'
                       ? dbs.checking !== null || dbs.loading
-                      : bots.checking !== null || dbs.checking !== null || bots.loading || dbs.loading)
+                      : loading || bots.checking !== null || dbs.checking !== null || bots.loading || dbs.loading)
               }
               title={
                 view === 'archive'
@@ -449,7 +508,7 @@ export default function App() {
                       : '⟳ Check all databases'
                     : bots.checking === 'all' || dbs.checking === 'all'
                       ? '⟳ Checking…'
-                      : '⟳ Check bots + databases'}
+                      : '⟳ Check everything'}
             </button>
             </div>
           </nav>
@@ -562,7 +621,10 @@ export default function App() {
               spark={s.spark}
               sparkColor={s.sparkColor}
               active={filter === s.key}
-              onClick={() => setFilter((f) => (f === s.key ? 'all' : s.key))}
+              onClick={() => {
+                setAtRiskOnly(false);
+                setFilter((f) => (f === s.key ? 'all' : s.key));
+              }}
             />
           ))}
         </div>
@@ -582,10 +644,23 @@ export default function App() {
 
           <Panel title={`Health today${envScope ? ` · ${envScope === 'PRD' ? 'PROD' : envScope}` : ''}`}>
             <Gauge pct={counts.pct} sub={`${counts.healthy} of ${counts.monitorable} with SRD`} />
-            <div className={`prd-callout ${counts.prdAtRisk > 0 ? 'prd-bad' : 'prd-ok'}`}>
+            <button
+              type="button"
+              className={`prd-callout prd-click ${counts.prdAtRisk > 0 ? 'prd-bad' : 'prd-ok'} ${atRiskOnly ? 'prd-active' : ''}`}
+              onClick={atRiskOnly ? () => setAtRiskOnly(false) : showAtRisk}
+              disabled={counts.prdAtRisk === 0 && !atRiskOnly}
+              title={
+                atRiskOnly
+                  ? 'Showing only the at-risk accounts — click to show all again'
+                  : counts.prdAtRisk > 0
+                    ? 'Show the accounts at risk (missing today or in error)'
+                    : 'Nothing is at risk'
+              }
+            >
               <span className="prd-val mono">{counts.prdAtRisk > 0 ? counts.prdAtRisk : '✓'}</span>
               <span className="prd-label">{envScope === 'PRD' || !envScope ? 'PRD' : envScope} at risk</span>
-            </div>
+              {(counts.prdAtRisk > 0 || atRiskOnly) && <span className="prd-go">{atRiskOnly ? '✕ clear' : 'view →'}</span>}
+            </button>
           </Panel>
         </div>
 
@@ -603,8 +678,19 @@ export default function App() {
               </button>
             );
           })}
+          {atRiskOnly && (
+            <button className="pill pill-on" onClick={() => setAtRiskOnly(false)} title="Show all accounts again">
+              ⚠ At risk only ✕
+            </button>
+          )}
           {filter !== 'all' && (
-            <button className="pill" onClick={() => setFilter('all')}>
+            <button
+              className="pill"
+              onClick={() => {
+                setFilter('all');
+                setAtRiskOnly(false);
+              }}
+            >
               ✕ Clear filter
             </button>
           )}
@@ -614,7 +700,11 @@ export default function App() {
         </div>
 
         {/* ── Accounts table ── */}
-        <Panel title={`Accounts${terms.length ? ` · watchlist (${terms.length})` : ''}`} bodyClass="panel-bd-flush">
+        <div ref={tableRef} style={{ scrollMarginTop: 150 }}>
+        <Panel
+          title={`Accounts${atRiskOnly ? ' · at risk' : ''}${terms.length ? ` · watchlist (${terms.length})` : ''}`}
+          bodyClass="panel-bd-flush"
+        >
           {loading && results.length === 0 ? (
             <p className="panel-empty">Loading storage accounts…</p>
           ) : rows.length === 0 ? (
@@ -625,12 +715,49 @@ export default function App() {
             <AccountTable results={rows} onSelect={(r) => setSelected(r.accountName)} />
           )}
         </Panel>
+        </div>
           </>
         )}
         <footer className="dash-foot">
           Godzilla Health Monitor · NTRX AppOps · bots and databases re-check every 15 min while this page is open
         </footer>
       </div>
+
+      {confirmRestart && (
+        <SidePanel
+          title="Restart backend?"
+          subtitle="Fetch fresh data from Azure"
+          width={400}
+          onClose={() => setConfirmRestart(false)}
+          footer={
+            <div className="sheet-buttons">
+              <button className="pill" onClick={() => setConfirmRestart(false)}>
+                Cancel
+              </button>
+              <button
+                className="btn-accent"
+                onClick={() => {
+                  setConfirmRestart(false);
+                  void restart();
+                }}
+              >
+                ↻ Restart now
+              </button>
+            </div>
+          }
+        >
+          <div className="sheet-empty" style={{ paddingTop: 8 }}>
+            <div className="sheet-empty-ico">↻</div>
+            <p>This restarts the whole backend and re-reads everything.</p>
+            <p className="sheet-empty-sub">
+              The dashboard shows “warming up” for about <strong>1–4 minutes</strong> and then fills in by itself. Bot and
+              database checks start empty again after a restart.
+            </p>
+          </div>
+        </SidePanel>
+      )}
+
+      <Toasts toasts={alerts.toasts} onClose={alerts.dismissToast} onOpen={() => setView('bots')} />
 
       {showNeeds && <NeedsIpPanel needs={needsIp} egressIp={data?.egressIp} onClose={() => setShowNeeds(false)} />}
 

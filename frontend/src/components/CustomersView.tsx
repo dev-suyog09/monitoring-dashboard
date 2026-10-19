@@ -252,6 +252,7 @@ export default function CustomersView({
                       <td className="mono" style={{ color: 'var(--text-3)', fontSize: 12, whiteSpace: 'nowrap' }}>
                         bots {fmtTime(b.checkedAt)} · dsm {fmtTime(d.checkedAt)}
                       </td>
+
                     </tr>
                     {isOpen &&
                       r.accounts.map((acct) => (

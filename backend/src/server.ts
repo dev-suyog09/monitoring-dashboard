@@ -86,6 +86,16 @@ async function ensureEgressIp(): Promise<void> {
   }
 }
 
+/** Re-read the public IP (it changes with VPN / network), so firewall errors quote the address Azure actually sees. */
+async function refreshEgressIp(): Promise<void> {
+  const ip = await Promise.race([resolveEgressIp(), new Promise<null>((res) => setTimeout(() => res(null), 6000))]);
+  if (ip && ip !== egressIp) {
+    console.log(`Public egress IP changed: ${egressIp ?? 'unknown'} -> ${ip}`);
+    egressIp = ip;
+    setEgressIp(ip);
+  }
+}
+
 /** Resolve the IP quickly at startup (retry every 10s for ~2 min), then let scans keep it fresh. */
 async function startEgressResolver(): Promise<void> {
   for (let i = 0; i < 12 && !egressIp; i++) {
@@ -285,26 +295,31 @@ if (fs.existsSync(frontendDist)) {
   app.get(/^(?!\/api).*/, (_req, res) => res.sendFile(path.join(frontendDist, 'index.html')));
 }
 
+/** Bot-storage options for a scan; the cache lets accounts that share a bot account list it once. */
+function botScan() {
+  return cfg.botPrefix
+    ? {
+        cache: new Map(),
+        options: {
+          container: cfg.botContainer,
+          stuckMs: cfg.botStuckMinutes * 60_000,
+          windowMs: cfg.botWindowDays * 86_400_000,
+          stuckMinutes: cfg.botStuckMinutes,
+          windowDays: cfg.botWindowDays,
+          timeoutMs: cfg.botTimeoutMs,
+        },
+      }
+    : undefined;
+}
+
 /** Run one scan; concurrent callers share the same in-flight scan. */
 function scanOnce(): Promise<void> {
   if (currentScan) return currentScan;
   currentScan = (async () => {
     if (clients.length === 0) return;
-    await ensureEgressIp();
+    await refreshEgressIp();
     const today = cfg.checkDate ?? todayStr();
-    const bot = cfg.botPrefix
-      ? {
-          cache: new Map(),
-          options: {
-            container: cfg.botContainer,
-            stuckMs: cfg.botStuckMinutes * 60_000,
-            windowMs: cfg.botWindowDays * 86_400_000,
-            stuckMinutes: cfg.botStuckMinutes,
-            windowDays: cfg.botWindowDays,
-            timeoutMs: cfg.botTimeoutMs,
-          },
-        }
-      : undefined;
+    const bot = botScan();
     const results = await mapLimit(clients, SCAN_CONCURRENCY, (c) => checkAccount(c, today, cfg.checkTimeoutMs, bot));
     snapshot = {
       today,

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { WatchGroup } from '../lib/watchlist';
+import SidePanel from './SidePanel';
 
 export interface CustomerSuggestion {
   /** Customer code, e.g. "adc". */
@@ -76,14 +77,21 @@ export default function WatchlistSearch({
     }
   };
 
+  const [saveOpen, setSaveOpen] = useState(false);
+  const [groupName, setGroupName] = useState('');
   const saveAsGroup = () => {
     if (!terms.length) return;
-    const name = window.prompt('Save this watchlist as a group named:')?.trim();
+    setGroupName('');
+    setSaveOpen(true);
+  };
+  const commitGroup = () => {
+    const name = groupName.trim();
     if (!name) return;
     const next = [...groups.filter((g) => g.name !== name), { name, terms: [...terms] }].sort((a, b) =>
       a.name.localeCompare(b.name),
     );
     setGroups(next);
+    setSaveOpen(false);
   };
   const loadGroup = (g: WatchGroup) => {
     setTerms([...g.terms]);
@@ -202,6 +210,50 @@ export default function WatchlistSearch({
           )}
         </div>
       </div>
+
+      {saveOpen && (
+        <SidePanel
+          title="Save group"
+          subtitle="Name this set of customers so you can recall it later"
+          width={400}
+          onClose={() => setSaveOpen(false)}
+          footer={
+            <div className="sheet-buttons">
+              <button className="pill" onClick={() => setSaveOpen(false)}>
+                Cancel
+              </button>
+              <button className="btn-accent" disabled={!groupName.trim()} onClick={commitGroup}>
+                ★ Save group
+              </button>
+            </div>
+          }
+        >
+          <label className="sheet-label" htmlFor="group-name">
+            Group name
+          </label>
+          <input
+            id="group-name"
+            className="sheet-input"
+            autoFocus
+            value={groupName}
+            onChange={(e) => setGroupName(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && commitGroup()}
+            placeholder="e.g. UAE banks, My top customers"
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <div className="sheet-label" style={{ marginTop: 18 }}>
+            Includes {terms.length} customer{terms.length === 1 ? '' : 's'}
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {terms.map((t) => (
+              <span key={t} className="wchip">
+                {t}
+              </span>
+            ))}
+          </div>
+        </SidePanel>
+      )}
     </div>
   );
 }

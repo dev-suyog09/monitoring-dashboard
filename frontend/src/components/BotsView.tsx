@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import type { BotsResponse } from '../types';
 import { Panel, StatPanel } from './panels';
 import BotGroups, { type BotScope } from './BotGroups';
@@ -49,6 +49,28 @@ export default function BotsView({
     };
   }, [services, instances]);
 
+  // Clicking a card filters the whole tab: the table, and the bots / instances listed below.
+  type CardFilter = 'all' | 'checked' | 'started' | 'down' | 'warn';
+  const [f, setF] = useState<CardFilter>('all');
+  const pick = (k: CardFilter) => setF((cur) => (cur === k ? 'all' : k));
+  const statusFilter = useMemo<((s: string) => boolean) | null>(() => {
+    if (f === 'started') return (s) => s === 'Started';
+    if (f === 'down') return (s) => isDownState(s);
+    if (f === 'warn') return (s) => s !== 'Started' && !isDownState(s);
+    return null;
+  }, [f]);
+  const tableRows = useMemo(
+    () => stats.notStarted.filter((i) => (f === 'down' ? isDownState(i.status) : f === 'warn' ? !isDownState(i.status) : true)),
+    [stats.notStarted, f],
+  );
+  const FILTER_TEXT: Record<CardFilter, string> = {
+    all: '',
+    checked: 'bots that have been checked',
+    started: 'started instances',
+    down: 'stopped / unresponsive instances',
+    warn: 'starting / other instances (not started, not stopped)',
+  };
+
   if (error && !data) {
     return (
       <div className="banner banner-err">
@@ -82,26 +104,43 @@ export default function BotsView({
       )}
 
       <div className="stat-row">
-        <StatPanel label="Cloud services" value={services.length} />
-        <StatPanel label="Checked" value={`${stats.checked}/${services.length}`} />
+        <StatPanel label="Cloud services" value={services.length} active={f === 'all'} onClick={() => setF('all')} />
+        <StatPanel label="Checked" value={`${stats.checked}/${services.length}`} active={f === 'checked'} onClick={() => pick('checked')} />
         <StatPanel
           label="Instances started"
           value={stats.checked === 0 ? '—' : `${instances.length - stats.notStarted.length}/${instances.length}`}
           scope={stats.checked === 0 ? 'st-idle' : stats.notStarted.length === 0 ? 'st-ok' : stats.down > 0 ? 'st-err' : 'st-warn'}
+          active={f === 'started'}
+          onClick={() => pick('started')}
         />
         <StatPanel
           label="Stopped / unresponsive"
           value={stats.checked === 0 ? '—' : stats.down}
           scope={stats.checked === 0 ? 'st-idle' : stats.down > 0 ? 'st-err' : 'st-ok'}
+          active={f === 'down'}
+          onClick={() => pick('down')}
         />
         <StatPanel
           label="Starting / other"
           value={stats.checked === 0 ? '—' : stats.starting}
           scope={stats.checked === 0 ? 'st-idle' : stats.starting > 0 ? 'st-warn' : 'st-ok'}
+          active={f === 'warn'}
+          onClick={() => pick('warn')}
         />
       </div>
 
-      {stats.checked > 0 && (
+      {f !== 'all' && (
+        <div className="banner banner-warm flex items-center justify-between gap-3">
+          <span>
+            Showing only <strong>{FILTER_TEXT[f]}</strong>
+          </span>
+          <button className="pill" onClick={() => setF('all')}>
+            ✕ Show everything
+          </button>
+        </div>
+      )}
+
+      {stats.checked > 0 && f !== 'started' && (
         <Panel
           title="Instances that are not started"
           right={
@@ -112,8 +151,8 @@ export default function BotsView({
           }
           bodyClass="panel-bd-flush"
         >
-          {stats.notStarted.length === 0 ? (
-            <p className="panel-empty">✓ All checked role instances are Started.</p>
+          {tableRows.length === 0 ? (
+            <p className="panel-empty">{f === 'all' ? '✓ All checked role instances are Started.' : 'No instances in this state.'}</p>
           ) : (
             <div className="dtable-wrap">
               <table className="dtable">
@@ -127,7 +166,7 @@ export default function BotsView({
                   </tr>
                 </thead>
                 <tbody>
-                  {[...stats.notStarted]
+                  {[...tableRows]
                     .sort((a, b) => Number(!isDownState(a.status)) - Number(!isDownState(b.status)))
                     .map((i) => (
                       <tr key={`${i.subscriptionId}|${i.cloudService}|${i.instance}`} style={{ cursor: 'default' }}>
@@ -147,7 +186,7 @@ export default function BotsView({
         </Panel>
       )}
 
-      <BotGroups data={data} checking={checking} onCheck={onCheck} />
+      <BotGroups data={data} checking={checking} onCheck={onCheck} statusFilter={statusFilter} onlyChecked={f === 'checked'} />
       {loading && <p className="text-xs" style={{ color: 'var(--text-3)' }}>Loading…</p>}
     </>
   );

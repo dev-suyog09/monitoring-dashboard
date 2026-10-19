@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import type { NeedsIp } from '../lib/needsIp';
+import SidePanel from './SidePanel';
 
 function CopyList({ title, hint, names }: { title: string; hint: string; names: string[] }) {
   const [copied, setCopied] = useState(false);
@@ -54,46 +55,23 @@ export default function NeedsIpPanel({
   egressIp?: string | null;
   onClose: () => void;
 }) {
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-  }, [onClose]);
-
   return (
-    <>
-      <div className="drawer-backdrop" onClick={onClose} />
-      <aside className="drawer" role="dialog" aria-label="Accounts that need an IP added">
-        <div className="flex items-start gap-3 p-6 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
-          <div className="min-w-0 flex-1">
-            <div className="text-sm font-bold" style={{ color: 'var(--text-1)' }}>
-              Accounts that need your IP added
-            </div>
-            <div className="mt-1 text-xs" style={{ color: 'var(--text-3)' }}>
-              Blocked by the storage firewall{egressIp ? <> · your IP <span className="mono">{egressIp}</span></> : null}
-            </div>
-          </div>
-          <button className="icirc" onClick={onClose} aria-label="Close" style={{ width: 36, height: 36 }}>
-            ✕
-          </button>
-        </div>
-        <div className="flex-1 overflow-y-auto p-6">
-          <CopyList
-            title="SRD locations"
-            names={needs.srd}
-            hint="Paste into add-ip-to-srd.ps1 when it asks for the account names."
-          />
-          <CopyList
-            title="Bot storage accounts"
-            names={needs.bot}
-            hint="Paste into add-ip-to-botstorage.ps1 (it accepts botstorage names directly)."
-          />
-          <p className="text-[11px] leading-snug" style={{ color: 'var(--text-3)' }}>
-            Timeouts and other errors are not listed — they are not an IP problem. The scripts skip accounts that are
-            private-endpoint only (private endpoints and no IP rules).
-          </p>
-        </div>
-      </aside>
-    </>
+    <SidePanel
+      title="Accounts that need your IP added"
+      subtitle={`Blocked by the storage firewall${egressIp ? ` · your IP ${egressIp}` : ''}`}
+      onClose={onClose}
+      width={460}
+    >
+      <CopyList title="SRD locations" names={needs.srd} hint="Paste into add-ip-to-srd.ps1 when it asks for the account names." />
+      <CopyList
+        title="Bot storage accounts"
+        names={needs.bot}
+        hint="Paste into add-ip-to-botstorage.ps1 (it accepts botstorage names directly)."
+      />
+      <p className="text-[11px] leading-snug" style={{ color: 'var(--text-3)' }}>
+        Timeouts and other errors are not listed — they are not an IP problem. The scripts skip accounts that are
+        private-endpoint only (private endpoints and no IP rules).
+      </p>
+    </SidePanel>
   );
 }

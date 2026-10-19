@@ -59,7 +59,20 @@ function CheckButton({
   );
 }
 
-function Bot({ b, checking, onCheck }: { b: BotEntry; checking: string | null; onCheck: (key: string, scope: BotScope) => void }) {
+type StatusFilter = ((status: string) => boolean) | null;
+
+function Bot({
+  b,
+  checking,
+  onCheck,
+  chipFilter,
+}: {
+  b: BotEntry;
+  checking: string | null;
+  onCheck: (key: string, scope: BotScope) => void;
+  /** When set, only instances in matching states are shown. */
+  chipFilter: StatusFilter;
+}) {
   const key = `bot:${b.service.name}`;
   const h = b.service.error ? 'warn' : healthOf(b.checked, b.started, b.instances.length, b.down, b.starting);
   return (
@@ -96,7 +109,7 @@ function Bot({ b, checking, onCheck }: { b: BotEntry; checking: string | null; o
       </div>
       {b.instances.length > 0 && (
         <div className="mt-2 flex flex-wrap gap-1.5">
-          {b.instances.map((i) => (
+          {(chipFilter ? b.instances.filter((i) => chipFilter(i.status)) : b.instances).map((i) => (
             <InstanceChip key={i.instance} name={i.instance} status={i.status} />
           ))}
         </div>
@@ -105,13 +118,27 @@ function Bot({ b, checking, onCheck }: { b: BotEntry; checking: string | null; o
   );
 }
 
-function Group({ g, checking, onCheck }: { g: BotGroup; checking: string | null; onCheck: (key: string, scope: BotScope) => void }) {
+function Group({
+  g,
+  checking,
+  onCheck,
+  chipFilter,
+}: {
+  g: BotGroup;
+  checking: string | null;
+  onCheck: (key: string, scope: BotScope) => void;
+  chipFilter: StatusFilter;
+}) {
   const key = `group:${g.key}`;
   const h = healthOf(g.checkedBots > 0, g.started, g.total, g.down, g.starting, g.errors);
   const regions = [...new Set(g.bots.map((b) => b.region).filter(Boolean))];
   const notChecked = g.bots.length - g.checkedBots;
   return (
-    <details className={`rounded-2xl ${SCOPE[h]}`} style={{ background: 'var(--card-2)', border: '1px solid var(--border)' }}>
+    <details
+      className={`rounded-2xl ${SCOPE[h]}`}
+      style={{ background: 'var(--card-2)', border: '1px solid var(--border)' }}
+      open={chipFilter ? true : undefined}
+    >
       <summary className="flex cursor-pointer select-none flex-wrap items-center gap-3 p-3.5">
         <span className="mono text-sm font-bold uppercase" style={{ color: 'var(--text-1)', minWidth: 54 }}>
           {g.customer}
@@ -145,7 +172,7 @@ function Group({ g, checking, onCheck }: { g: BotGroup; checking: string | null;
       </summary>
       <ul className="flex flex-col gap-2 px-3.5 pb-3.5">
         {g.bots.map((b) => (
-          <Bot key={`${b.service.subscriptionId}|${b.service.name}`} b={b} checking={checking} onCheck={onCheck} />
+          <Bot key={`${b.service.subscriptionId}|${b.service.name}`} b={b} checking={checking} onCheck={onCheck} chipFilter={chipFilter} />
         ))}
       </ul>
     </details>
@@ -157,10 +184,16 @@ export default function BotGroups({
   data,
   checking,
   onCheck,
+  statusFilter = null,
+  onlyChecked = false,
 }: {
   data: BotsResponse;
   checking: string | null;
   onCheck: (key: string, scope: BotScope) => void;
+  /** Show only bots that have an instance in a matching state (and only those instances). */
+  statusFilter?: StatusFilter;
+  /** Show only bots that have been checked. */
+  onlyChecked?: boolean;
 }) {
   const [q, setQ] = useState('');
 
@@ -168,10 +201,20 @@ export default function BotGroups({
 
   const shown = useMemo(() => {
     const term = q.trim().toLowerCase();
-    return groups.filter(
-      (g) => !term || g.customer.includes(term) || g.bots.some((b) => b.service.name.toLowerCase().includes(term)),
-    );
-  }, [groups, q]);
+    return groups
+      .filter((g) => !term || g.customer.includes(term) || g.bots.some((b) => b.service.name.toLowerCase().includes(term)))
+      .map((g) =>
+        statusFilter || onlyChecked
+          ? {
+              ...g,
+              bots: g.bots.filter(
+                (b) => (!onlyChecked || b.checked) && (!statusFilter || b.instances.some((i) => statusFilter(i.status))),
+              ),
+            }
+          : g,
+      )
+      .filter((g) => g.bots.length > 0);
+  }, [groups, q, statusFilter, onlyChecked]);
 
   const started = shown.reduce((n, g) => n + g.started, 0);
   const total = shown.reduce((n, g) => n + g.total, 0);
@@ -199,7 +242,7 @@ export default function BotGroups({
       ) : (
         <div className="flex flex-col gap-2.5">
           {shown.map((g) => (
-            <Group key={g.key} g={g} checking={checking} onCheck={onCheck} />
+            <Group key={`${g.key}${statusFilter ? ':f' : ''}`} g={g} checking={checking} onCheck={onCheck} chipFilter={statusFilter} />
           ))}
         </div>
       )}
