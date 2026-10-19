@@ -914,3 +914,9 @@ html[data-fullscreen='true'] .dash { max-width: none; }
 .stack-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-size: 11px; color: var(--text-3); }
 .stack-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 3px; margin-right: 5px; }
 [data-theme='light'] .hbar-track { background: #ece7f6; }
+
+/* clickable chart parts (they apply the same filter as the stat cards) */
+.donut-seg.clickable, .donut-legend li.clickable, .hbars li.clickable, .hbar-seg.clickable { cursor: pointer; }
+.hbars li.clickable { border-radius: 8px; padding: 3px 6px; margin: -3px -6px; transition: background 0.12s; }
+.hbars li.clickable:hover { background: var(--card-2); }
+.hbar-seg.clickable:hover { filter: brightness(1.15); }

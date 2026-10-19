@@ -6,7 +6,7 @@ import { DbCharts } from './viewCharts';
 
 export type DbScope = { server?: string; db?: string; subscriptionId?: string };
 
-type DbFilter = 'all' | 'critical' | 'watch' | 'nobackup' | 'offline' | 'unchecked' | 'dtu';
+type DbFilter = 'all' | 'ok' | 'critical' | 'watch' | 'nobackup' | 'offline' | 'unchecked' | 'dtu';
 type DbSort = 'subscription' | 'server' | 'name' | 'status' | 'backup' | 'used' | 'total' | 'pct' | 'dtu';
 type Level = 'critical' | 'watch' | 'ok' | 'na';
 const LEVEL_SCOPE: Record<Level, string> = { critical: 'st-err', watch: 'st-warn', ok: 'st-ok', na: 'st-idle' };
@@ -65,6 +65,7 @@ export default function DatabasesView({
     const lv = (l: Level) => checked.filter((d) => levelOf(d.usedPct, warn, crit) === l).length;
     return {
       checked: checked.length,
+      ok: checked.filter((d) => d.usedPct !== null && levelOf(d.usedPct, warn, crit) === 'ok').length,
       critical: lv('critical'),
       watch: lv('watch'),
       nobackup: databases.filter(hasNoBackup).length,
@@ -79,6 +80,8 @@ export default function DatabasesView({
     const filtered = databases.filter((d) => {
       if (q && !`${d.subscription} ${d.server} ${d.name} ${d.resourceGroup}`.toLowerCase().includes(q)) return false;
       switch (filter) {
+        case 'ok':
+          return isChecked(d) && d.usedPct !== null && levelOf(d.usedPct, warn, crit) === 'ok';
         case 'critical':
           return isChecked(d) && levelOf(d.usedPct, warn, crit) === 'critical';
         case 'watch':
@@ -214,12 +217,13 @@ export default function DatabasesView({
       </div>
 
       <ChartsSection label="charts">
-        <DbCharts data={data} />
+        <DbCharts data={data} onPick={(k) => setFilter(k)} />
       </ChartsSection>
 
       <div className="flex flex-wrap items-center gap-2">
         {(
           [
+            ['ok', `≤ ${warn}% OK`, counts.ok],
             ['critical', `> ${crit}% critical`, counts.critical],
             ['watch', `${warn}–${crit}% watch`, counts.watch],
             ['dtu', `DTU > ${dtuCrit}%`, counts.dtu],

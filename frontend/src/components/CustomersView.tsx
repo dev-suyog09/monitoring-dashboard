@@ -4,7 +4,7 @@ import type { CustomerRow } from '../lib/customers';
 import { EnvBadge, StatusBadge } from './Badges';
 import { Panel } from './panels';
 import { ChartsSection } from './charts';
-import { CustomerCharts } from './viewCharts';
+import { CustomerCharts, type CustPick } from './viewCharts';
 
 type SortKey = 'name' | 'env' | 'archive' | 'bots' | 'dbs';
 
@@ -106,6 +106,21 @@ export default function CustomersView({
   const [sort, setSort] = useState<SortKey>('archive');
   const [dir, setDir] = useState<'asc' | 'desc'>('asc');
   const [open, setOpen] = useState<Set<string>>(new Set());
+  const [pick, setPick] = useState<CustPick | null>(null);
+
+  const PICKS: Record<CustPick, { text: string; test: (r: CustomerRow) => boolean }> = {
+    'arch-ok': { text: 'customers with all archives present today', test: (r) => r.archive.monitorable > 0 && r.archive.healthy === r.archive.monitorable },
+    'arch-warn': { text: 'customers with archives missing today', test: (r) => r.archive.monitorable > 0 && r.archive.healthy < r.archive.monitorable && r.archive.errors === 0 },
+    'arch-err': { text: 'customers with archive errors', test: (r) => r.archive.monitorable > 0 && r.archive.healthy < r.archive.monitorable && r.archive.errors > 0 },
+    'arch-none': { text: 'customers without an SRD account', test: (r) => r.accounts.length === 0 || r.archive.monitorable === 0 },
+    'bot-ok': { text: 'customers with started bot instances', test: (r) => r.bots.started > 0 },
+    'bot-warn': { text: 'customers with starting / other bot instances', test: (r) => r.bots.starting > 0 },
+    'bot-down': { text: 'customers with stopped / unresponsive bot instances', test: (r) => r.bots.down > 0 },
+    'bot-unchecked': { text: 'customers whose bots are not checked yet', test: (r) => r.bots.services > 0 && r.bots.checked === 0 },
+    'db-ok': { text: 'customers with healthy databases', test: (r) => r.dbs.checked - r.dbs.issues > 0 },
+    'db-issue': { text: 'customers with database issues', test: (r) => r.dbs.issues > 0 },
+    'db-unchecked': { text: 'customers with databases not checked yet', test: (r) => r.dbs.total - r.dbs.checked > 0 },
+  };
 
   const sorted = useMemo(() => {
     const val = (r: CustomerRow): string | number => {
@@ -122,13 +137,14 @@ export default function CustomersView({
           return dbsRank(r);
       }
     };
-    return [...rows].sort((a, b) => {
+    return (pick ? rows.filter(PICKS[pick].test) : rows).sort((a, b) => {
       const av = val(a);
       const bv = val(b);
       const c = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv));
       return (dir === 'asc' ? c : -c) || a.name.localeCompare(b.name);
     });
-  }, [rows, sort, dir]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, sort, dir, pick]);
 
   const toggleSort = (k: SortKey) => {
     if (k === sort) setDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -158,8 +174,18 @@ export default function CustomersView({
   return (
     <>
     <ChartsSection label="charts">
-      <CustomerCharts rows={rows} />
+      <CustomerCharts rows={rows} onPick={(k) => setPick((cur) => (cur === k ? null : k))} />
     </ChartsSection>
+    {pick && (
+      <div className="banner banner-warm flex items-center justify-between gap-3">
+        <span>
+          Showing only <strong>{PICKS[pick].text}</strong> · {sorted.length}
+        </span>
+        <button className="pill" onClick={() => setPick(null)}>
+          ✕ Show everything
+        </button>
+      </div>
+    )}
     <Panel
       title={`Customers · ${rows.length} subscription${rows.length === 1 ? '' : 's'}`}
       right={<span className="panel-legend">{loading ? 'listing bots and databases…' : 'click a row for its SRD accounts'}</span>}

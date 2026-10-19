@@ -13,7 +13,13 @@ const ACCENT = 'var(--accent)';
 
 /* ──────────────────────────── Customers ──────────────────────────── */
 
-export function CustomerCharts({ rows }: { rows: CustomerRow[] }) {
+export type CustPick =
+  | 'arch-ok' | 'arch-warn' | 'arch-err' | 'arch-none'
+  | 'bot-ok' | 'bot-warn' | 'bot-down' | 'bot-unchecked'
+  | 'db-ok' | 'db-issue' | 'db-unchecked';
+
+export function CustomerCharts({ rows, onPick }: { rows: CustomerRow[]; onPick?: (k: CustPick) => void }) {
+  const go = (k: CustPick) => (onPick ? () => onPick(k) : undefined);
   // Archive today, one count per customer
   let aOk = 0;
   let aWarn = 0;
@@ -56,9 +62,9 @@ export function CustomerCharts({ rows }: { rows: CustomerRow[] }) {
       label: r.name.replace(/^AZU-NVM-FMC-NCC-/, ''),
       title: r.name,
       parts: [
-        { label: 'archive not healthy', value: Math.max(0, r.archive.monitorable - r.archive.healthy), color: WARN },
-        { label: 'instances down', value: r.bots.down, color: ERR },
-        { label: 'databases with issues', value: r.dbs.issues, color: ACCENT },
+        { label: 'archive not healthy', value: Math.max(0, r.archive.monitorable - r.archive.healthy), color: WARN, onClick: go('arch-warn') },
+        { label: 'instances down', value: r.bots.down, color: ERR, onClick: go('bot-down') },
+        { label: 'databases with issues', value: r.dbs.issues, color: ACCENT, onClick: go('db-issue') },
       ],
     }))
     .filter((r) => r.parts.some((p) => p.value > 0))
@@ -72,10 +78,10 @@ export function CustomerCharts({ rows }: { rows: CustomerRow[] }) {
           center={aOk}
           centerLabel={`of ${rows.length} healthy`}
           segments={[
-            { label: 'All accounts archived', value: aOk, color: OK },
-            { label: 'Some missing today', value: aWarn, color: WARN },
-            { label: 'Errors', value: aErr, color: ERR },
-            { label: 'No SRD', value: aNone, color: IDLE },
+            { label: 'All accounts archived', value: aOk, color: OK, onClick: go('arch-ok') },
+            { label: 'Some missing today', value: aWarn, color: WARN, onClick: go('arch-warn') },
+            { label: 'Errors', value: aErr, color: ERR, onClick: go('arch-err') },
+            { label: 'No SRD', value: aNone, color: IDLE, onClick: go('arch-none') },
           ]}
         />
       </Panel>
@@ -85,10 +91,10 @@ export function CustomerCharts({ rows }: { rows: CustomerRow[] }) {
           centerLabel={`of ${instTotal} up`}
           empty="No bots checked yet — use ▸ check or Check everything."
           segments={[
-            { label: 'Started', value: started, color: OK },
-            { label: 'Starting / other', value: other, color: WARN },
-            { label: 'Stopped / unresponsive', value: down, color: ERR },
-            { label: 'Customers not checked', value: botsUnchecked, color: IDLE },
+            { label: 'Started', value: started, color: OK, onClick: go('bot-ok') },
+            { label: 'Starting / other', value: other, color: WARN, onClick: go('bot-warn') },
+            { label: 'Stopped / unresponsive', value: down, color: ERR, onClick: go('bot-down') },
+            { label: 'Customers not checked', value: botsUnchecked, color: IDLE, onClick: go('bot-unchecked') },
           ]}
         />
       </Panel>
@@ -98,9 +104,9 @@ export function CustomerCharts({ rows }: { rows: CustomerRow[] }) {
           centerLabel="DBs OK"
           empty="No databases checked yet — use ▸ check or Check everything."
           segments={[
-            { label: 'OK', value: dbOk, color: OK },
-            { label: 'With issues', value: dbIssue, color: ERR },
-            { label: 'Not checked', value: dbUnchecked, color: IDLE },
+            { label: 'OK', value: dbOk, color: OK, onClick: go('db-ok') },
+            { label: 'With issues', value: dbIssue, color: ERR, onClick: go('db-issue') },
+            { label: 'Not checked', value: dbUnchecked, color: IDLE, onClick: go('db-unchecked') },
           ]}
         />
       </Panel>
@@ -120,16 +126,20 @@ export function CustomerCharts({ rows }: { rows: CustomerRow[] }) {
 
 /* ──────────────────────────── Cloud Instances ──────────────────────────── */
 
-export function BotCharts({ data }: { data: BotsResponse }) {
+export type BotPick = 'started' | 'warn' | 'down';
+export type DbPick = 'ok' | 'watch' | 'critical' | 'dtu' | 'unchecked';
+
+export function BotCharts({ data, onPick }: { data: BotsResponse; onPick?: (k: BotPick) => void }) {
   const inst = data.instances;
   const lv = { ok: 0, warn: 0, bad: 0 };
   for (const i of inst) lv[instanceLevel(i.status)]++;
   const unchecked = data.cloudServices.filter((c) => !c.checkedAt).length;
 
+  const go = (k: BotPick) => (onPick ? () => onPick(k) : undefined);
   const parts = (ok: number, warn: number, bad: number) => [
-    { label: 'Started', value: ok, color: OK },
-    { label: 'Starting / other', value: warn, color: WARN },
-    { label: 'Stopped / unresponsive', value: bad, color: ERR },
+    { label: 'Started', value: ok, color: OK, onClick: go('started') },
+    { label: 'Starting / other', value: warn, color: WARN, onClick: go('warn') },
+    { label: 'Stopped / unresponsive', value: bad, color: ERR, onClick: go('down') },
   ];
 
   const envs = new Map<string, { ok: number; warn: number; bad: number }>();
@@ -160,9 +170,9 @@ export function BotCharts({ data }: { data: BotsResponse }) {
           centerLabel={`of ${inst.length} up`}
           empty="No instances checked yet — use Check all bots."
           segments={[
-            { label: 'Started', value: lv.ok, color: OK },
-            { label: 'Starting / other', value: lv.warn, color: WARN },
-            { label: 'Stopped / unresponsive', value: lv.bad, color: ERR },
+            { label: 'Started', value: lv.ok, color: OK, onClick: go('started') },
+            { label: 'Starting / other', value: lv.warn, color: WARN, onClick: go('warn') },
+            { label: 'Stopped / unresponsive', value: lv.bad, color: ERR, onClick: go('down') },
             { label: 'Bots not checked', value: unchecked, color: IDLE },
           ]}
         />
@@ -179,7 +189,8 @@ export function BotCharts({ data }: { data: BotsResponse }) {
 
 /* ──────────────────────────── Databases ──────────────────────────── */
 
-export function DbCharts({ data }: { data: DatabasesResponse }) {
+export function DbCharts({ data, onPick }: { data: DatabasesResponse; onPick?: (k: DbPick) => void }) {
+  const go = (k: DbPick) => (onPick ? () => onPick(k) : undefined);
   const crit = data.storageThreshold;
   const warn = data.warnThreshold;
   const dtuThr = data.dtuThreshold;
@@ -205,6 +216,7 @@ export function DbCharts({ data }: { data: DatabasesResponse }) {
       sub: `${d.usedGB ?? 0} / ${d.totalGB} GB`,
       color: levelColor(d.usedPct!),
       marker: crit,
+      onClick: go(d.usedPct! > crit ? 'critical' : d.usedPct! > warn ? 'watch' : 'ok'),
     }));
   const dtu: BarRow[] = checked
     .filter((d) => d.isDtu && d.dtuPct !== null)
@@ -219,6 +231,7 @@ export function DbCharts({ data }: { data: DatabasesResponse }) {
       display: `${d.dtuPct}%`,
       color: d.dtuPct! > dtuThr ? ERR : ACCENT,
       marker: dtuThr,
+      onClick: go(d.dtuPct! > dtuThr ? 'dtu' : 'ok'),
     }));
 
   return (
@@ -229,10 +242,10 @@ export function DbCharts({ data }: { data: DatabasesResponse }) {
           centerLabel="checked"
           empty="No databases checked yet — use Check all databases."
           segments={[
-            { label: `OK (≤ ${warn}%)`, value: ok, color: OK },
-            { label: `Watch (${warn}–${crit}%)`, value: watch, color: WARN },
-            { label: `Critical (> ${crit}%)`, value: critical, color: ERR },
-            { label: 'N/A or not checked', value: rest, color: IDLE },
+            { label: `OK (≤ ${warn}%)`, value: ok, color: OK, onClick: go('ok') },
+            { label: `Watch (${warn}–${crit}%)`, value: watch, color: WARN, onClick: go('watch') },
+            { label: `Critical (> ${crit}%)`, value: critical, color: ERR, onClick: go('critical') },
+            { label: 'N/A or not checked', value: rest, color: IDLE, onClick: go('unchecked') },
           ]}
         />
       </Panel>

@@ -8,6 +8,8 @@ export interface Segment {
   label: string;
   value: number;
   color: string;
+  /** Click handler: applies the matching filter on the tab. */
+  onClick?: () => void;
 }
 
 function CenterNum({ n }: { n: number }) {
@@ -52,7 +54,8 @@ export function Donut({
         {arcs.map((a) => (
           <circle
             key={a.label}
-            className="donut-seg"
+            className={`donut-seg${a.onClick ? ' clickable' : ''}`}
+            onClick={a.onClick}
             cx={70}
             cy={70}
             r={r}
@@ -70,7 +73,7 @@ export function Donut({
             onMouseEnter={() => setHover(a.i)}
             onMouseLeave={() => setHover(null)}
           >
-            <title>{`${a.label}: ${a.value}`}</title>
+            <title>{`${a.label}: ${a.value}${a.onClick ? ' · click to filter' : ''}`}</title>
           </circle>
         ))}
         <text x={70} y={68} textAnchor="middle" fontSize={26} fontWeight={800} fill="var(--text-1)" className="mono">
@@ -84,7 +87,8 @@ export function Donut({
         {segments.map((s, i) => (
           <li
             key={s.label}
-            className={hover !== null && arcs[hover]?.label === s.label ? 'on' : ''}
+            className={`${hover !== null && arcs[hover]?.label === s.label ? 'on' : ''}${s.onClick ? ' clickable' : ''}`}
+            onClick={s.onClick}
             onMouseEnter={() => {
               const idx = arcs.findIndex((a) => a.label === s.label);
               setHover(idx >= 0 ? idx : null);
@@ -112,6 +116,7 @@ export interface BarRow {
   display: string;
   sub?: string;
   color: string;
+  onClick?: () => void;
   /** Optional threshold tick (same unit as value). */
   marker?: number;
 }
@@ -123,7 +128,7 @@ export function HBars({ rows, empty }: { rows: BarRow[]; empty: string }) {
   return (
     <ul className="hbars" key={sig}>
       {rows.map((r, i) => (
-        <li key={r.key} title={r.title ?? r.label}>
+        <li key={r.key} title={r.title ?? r.label} className={r.onClick ? 'clickable' : ''} onClick={r.onClick}>
           <div className="hbar-top">
             <span className="hbar-label mono">{r.label}</span>
             <span className="hbar-val mono">{r.display}</span>
@@ -169,7 +174,8 @@ export function StackBars({ rows, empty }: { rows: StackRow[]; empty: string }) 
               .map((p, j) => (
                 <span
                   key={p.label}
-                  className="hbar-seg"
+                  className={`hbar-seg${p.onClick ? ' clickable' : ''}`}
+                  onClick={p.onClick}
                   title={`${p.label}: ${p.value}`}
                   style={{ width: `${(p.value / max) * 100}%`, background: p.color, animationDelay: `${i * 70 + j * 90}ms` }}
                 />

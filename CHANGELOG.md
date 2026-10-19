@@ -4,6 +4,21 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-19 · Clickable charts, reliable auto re-check
+
+### Added
+- **Clickable charts** on all three tabs. Clicking a donut slice, legend row or coloured bar applies the same filter as
+  the stat cards above, with a "Showing only…" bar and a way to clear it.
+  - Cloud Instances: green = started, yellow = starting / other, red = stopped / unresponsive.
+  - Databases: OK, Watch, Critical and N/A slices; storage bars filter to their level and red DTU bars to DTU over the
+    limit. New **OK** filter pill.
+  - Customers: archive, bot and database slices (and the "needing attention" segments) filter the customer table.
+
+### Fixed
+- **Auto re-check every 15 minutes** on Cloud Instances and Databases: a failed run (e.g. while the backend restarts)
+  used to end the schedule for good. It now retries after a minute; any successful check starts the schedule, and a
+  15-second watchdog keeps it working through laptop sleep and background-tab throttling.
+
 ## 2026-10-19 · Documentation
 
 ### Changed

@@ -143,7 +143,7 @@ export default function BotsView({
       )}
 
       <ChartsSection label="charts">
-        <BotCharts data={data} />
+        <BotCharts data={data} onPick={(k) => setF(k)} />
       </ChartsSection>
 
       {stats.checked > 0 && f !== 'started' && (

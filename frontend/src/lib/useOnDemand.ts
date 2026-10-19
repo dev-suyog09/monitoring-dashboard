@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+const RETRY_MS = 60_000;
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 /** A dropped connection (e.g. the backend restarting) is retried; real API errors are not. */
 const isNetworkError = (e: unknown) => e instanceof TypeError || /failed to fetch|network|load failed/i.test((e as Error)?.message ?? '');
@@ -9,8 +10,8 @@ const isNetworkError = (e: unknown) => e instanceof TypeError || /failed to fetc
  * `check(key, scope)` runs a live check for everything or for one item. Nothing is fetched until asked,
  * so the dashboard's start-up is not slowed down by these tabs.
  *
- * Once a full check ("all") has run, it repeats automatically every `autoMs` (15 min by default), so the
- * tab stays current without clicking. Single-item checks do not move that schedule.
+ * Once any check has run, a full check repeats automatically every `autoMs` (15 min by default), so the tab
+ * stays current without clicking; a failed run is retried after a minute.
  */
 export function useOnDemand<T, S>(
   list: (signal?: AbortSignal) => Promise<T>,
@@ -27,6 +28,7 @@ export function useOnDemand<T, S>(
   const [fullAt, setFullAt] = useState<number | null>(null); // time of the last full ("all") check
   const loadedRef = useRef(false);
   const busyRef = useRef(false);
+  const scheduledRef = useRef(false);
 
   /** List the inventory (first call only, unless forced). */
   const open = useCallback(
@@ -68,36 +70,40 @@ export function useOnDemand<T, S>(
         setData(result);
         const now = new Date();
         setLastCheck(now);
-        if (key === 'all') setFullAt(now.getTime());
+        // any successful check starts / moves the 15-minute schedule (it always re-runs the full check)
+        setFullAt(now.getTime());
         loadedRef.current = true;
       } catch (e) {
         setError((e as Error).message);
+        // a failed run must not end the schedule: if one is active (or this was a full check), retry in a minute
+        if (key === 'all' || scheduledRef.current) setFullAt(Date.now() - autoMs + RETRY_MS);
       } finally {
         busyRef.current = false;
         setChecking(null);
       }
     },
-    [run],
+    [run, autoMs],
   );
 
-  // Auto re-check: every `autoMs` after the last full check (only once a first full check has been run).
+  // Auto re-check: every `autoMs` after the last check. A 15 s watchdog (instead of one long timer) keeps this
+  // working through laptop sleep and background-tab throttling, which can delay or drop long timeouts.
+  const scopeRef = useRef(allScope);
+  scopeRef.current = allScope;
+  const checkRef = useRef(check);
+  checkRef.current = check;
   useEffect(() => {
+    scheduledRef.current = fullAt !== null;
     if (fullAt === null) {
       setNextAuto(null);
       return;
     }
     const due = fullAt + autoMs;
     setNextAuto(new Date(due));
-    const t = setTimeout(
-      () => {
-        // a click may be running; try again shortly rather than skipping a whole cycle
-        const attempt = () => (busyRef.current ? setTimeout(attempt, 5000) : void check('all', allScope));
-        attempt();
-      },
-      Math.max(0, due - Date.now()),
-    );
-    return () => clearTimeout(t);
-  }, [fullAt, autoMs, check, allScope]);
+    const t = setInterval(() => {
+      if (Date.now() >= due && !busyRef.current) void checkRef.current('all', scopeRef.current);
+    }, 15_000);
+    return () => clearInterval(t);
+  }, [fullAt, autoMs]);
 
   /** Forget everything (e.g. after the backend restarted); the next `open()` lists again. */
   const reset = useCallback(() => {
@@ -105,6 +111,7 @@ export function useOnDemand<T, S>(
     setData(null);
     setLastCheck(null);
     setFullAt(null);
+    scheduledRef.current = false;
   }, []);
 
   return { data, loading, checking, error, lastCheck, nextAuto, open, check, reset };
