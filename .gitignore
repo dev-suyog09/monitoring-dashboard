@@ -1,0 +1,17 @@
+# dependencies and build output
+node_modules/
+dist/
+
+# local config / secrets (copy backend/.env.example to backend/.env)
+.env
+.env.*
+!.env.example
+
+# logs from the scheduled-task launcher
+*.log
+
+# local tooling and scratch files
+.claude/
+Claude outputs/
+.DS_Store
+Thumbs.db
