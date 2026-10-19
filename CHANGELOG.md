@@ -4,6 +4,14 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-19 · Documentation
+
+### Changed
+- **README** rewritten for the four tabs and all current features: on-demand checks, shared search and Groups, alerts,
+  Needs IP, charts, themes, Fullscreen, Restart backend, security model, configuration table, firewall helper scripts,
+  API routes and repo layout.
+- `backend/.env.example` updated with the bot-storage, database, speed and subscription settings.
+
 ## 2026-10-19 · On-demand charts
 
 ### Added

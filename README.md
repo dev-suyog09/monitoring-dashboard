@@ -5,112 +5,192 @@ See [CHANGELOG.md](./CHANGELOG.md) for what changed in each release.
 
 ---
 
-# SRD Archive Monitor
+# Godzilla Health Monitor (NTRX AppOps)
 
-A focused dashboard that answers one question per SRD storage account:
+One dashboard for the health of every customer deployment across your Azure subscriptions:
 
-> **Has today's date folder been created under the `archive/` container?**
+- **Archive:** has today's archive folder been written on each SRD storage account?
+- **Cloud Instances:** are the bot (cloud service) role instances running?
+- **Databases:** is each SQL database online, backed up, and within its storage and DTU limits?
+- **Bot storage:** is anything left stuck in a bot storage account?
 
-For each account it walks `archive/{capture}/{YYYY-MM-DD}/` and reports:
+Everything is read with your own `az login` identity. Nothing is stored on disk.
+
+## The four tabs
+
+| Tab | What it shows |
+|---|---|
+| **Customers** | One row per subscription (customer): archive status (`1/1 today`), bots (`114/114 up`), databases (`3/3 db ok`), the last-checked time, and a **▸ check** / click-to-re-check on the bots and database cells. Click a row to list its SRD accounts. |
+| **Archive** | Every `*srd01` storage account. Stat cards (Accounts, Healthy, Missing today, Errors, No SRD), a 7-day coverage chart, a **Health today** gauge, a **PRD at risk** box that jumps to the at-risk accounts, and the account table. Click an account for its drawer (capture folders, latest files, bot-storage leftovers). |
+| **Cloud Instances** | Bot role-instance states grouped by customer and environment (`DB · PRD — 316/316`), expandable to each bot and instance, plus a table of everything that is not started. The stat cards filter the whole tab. |
+| **Databases** | Status, latest long-term-retention backup, storage used vs. limit, and current DTU utilization. The cards and filter buttons narrow to critical storage, watch, DTU above the limit, no backup, offline, or not checked. |
+
+Archive status meanings:
 
 | Status | Meaning |
 |---|---|
 | **Healthy** | At least one capture folder has today's date folder |
 | **Missing Today** | Capture folders exist, but none has today's folder |
 | **No Data** | No capture folders at all |
-| **Error** | Couldn't read the account (auth / network / missing container) |
+| **Error** | Couldn't read the account (firewall, auth, network) |
+
+Instance states: **Started** is green; **Stopped** and **Unresponsive** are red (only these count on the tab badge and raise alerts); **Starting** and any other state (Aborted, Unknown, Created…) are yellow.
+Database thresholds: storage **watch above 60 %** and **critical above 75 %** (fixed); DTU **above 90 %** (`DTU_THRESHOLD`; the latest one-minute reading, DTU-model databases only).
+
+## Features
+
+**Bots and databases are on demand.** Nothing is scanned at start-up. Opening a tab lists the inventory (cheap); the real checks run when you press **Check all**, a per-customer / per-bot / per-database **Check**, or click a result chip. After the first full check, the tab re-checks everything automatically **every 15 minutes while the page is open**.
+
+**Shared search and Groups** (same on every tab)
+- Customers are matched by their code, not by substring: `adc` is ADC only; `db` does not pull in `dbs`.
+- Type a letter and the page filters live to every customer starting with it; a dropdown lists matches.
+- With chips or a group active, typing **narrows within them**. The dropdown separates *In this filter* (click to focus on one; a trailing space, `nas `, means exactly that customer) from *Add to filter*.
+- **★ Save group** stores a named set of customers; **Groups** recalls it.
+- A **PROD / UAT / DEV** filter applies on top (DEV includes TST).
+
+**Alerts.** A bell with an unread count and a pop-up toast appear when a bot instance newly goes Stopped or Unresponsive; recoveries are noted. A soft chime plays (switchable, with a preview) and optional desktop notifications work while the tab is in the background. Browsers allow sound only after the first click on the page.
+
+**Needs IP.** Lists, as comma-separated copyable text, the SRD accounts and bot storage accounts blocked by their firewall, ready to paste into the helper scripts below.
+
+**On-demand charts.** On Customers, Cloud Instances and Databases, **📊 Show charts** reveals animated donuts and bars (archive, instances, storage levels, fullest databases, busiest DTU…). They follow the active filters and are drawn only when asked.
+
+**Look and feel.** Light theme (white cards on lavender, gradient stat cards) and a true-black AMOLED dark theme, animated charts and counters (respects "reduce motion"), glass side-panels for all pop-ups, responsive down to phone width, and a **Fullscreen** button. The normal layout is a centred column; in fullscreen (button or F11) it switches to edge to edge.
+
+**Restart backend.** A header button restarts the whole backend (it re-runs the `NTRX AppOps` scheduled task). Bot and database results start empty again afterwards.
 
 ## Security model
 
-- **No secret stored on disk (default).** You list account *names* in
-  `STORAGE_ACCOUNTS`. At startup the app reads each account's key at runtime via
-  your identity's management-plane `listKeys` call — the same thing the Azure
-  Portal does when it shows blobs via "Access key". The key lives only in memory.
-- **No data-plane RBAC role required.** Because it uses management access (which
-  Owner/Contributor already have) rather than Entra data access, you don't need
-  `Storage Blob Data Reader` granted on each account.
-- **Identity:** locally it's your `az login` session; in a deployment set
-  `USE_MANAGED_IDENTITY=true` to use the app's managed identity.
-- **No secrets in the repo.** `.env` is gitignored; only `.env.example` is tracked.
-- Connection strings (`STORAGE_CONN_1..N`) still work as a fallback but store
-  keys on disk — discouraged.
+- **No secret stored on disk (default).** The app discovers accounts and, at start-up, reads each account's key at runtime with your identity's management-plane `listKeys` call: the same thing the Azure Portal does for "Access key". Keys live only in memory.
+- **No data-plane RBAC role required** for the storage checks; management access (Owner / Contributor) is enough.
+- **Identity:** locally your `az login` session; in a deployment set `USE_MANAGED_IDENTITY=true`.
+- **Nothing sensitive in the repo.** `.env` is gitignored; only `.env.example` is tracked.
+- `STORAGE_CONN_1..N` connection strings still work as a fallback but store keys on disk — discouraged.
+- The restart endpoint only accepts requests from the local dashboard (it rejects other origins).
 
 > If a key rotates, restart the backend so it re-reads the new key.
 
 ## Prerequisites
 
-- Node.js 18+
+- Node.js 18+ and npm
 - Azure CLI, logged in: `az login`
-- Storage Blob Data Reader on the target accounts (for keyless mode)
+- Read access to the subscriptions (Resource Graph, Azure Monitor metrics, SQL long-term-retention backups, Cloud Services) and permission to list storage account keys. Owner or Contributor covers all of it.
+- Network access to the storage accounts: their firewalls must allow the machine's public IP (see *Firewall and your IP*).
 
 ## Run it
+
+Development (two terminals):
 
 ```powershell
 # Backend
 cd backend
-copy .env.example .env      # then set STORAGE_ACCOUNTS
+copy .env.example .env      # then review it
 npm install
 npm run dev                 # http://localhost:3001
 
-# Frontend (second terminal)
+# Frontend
 cd frontend
 npm install
 npm run dev                 # http://localhost:3000
 ```
 
+Always-on on Windows: **one process** serves both the API and the built UI on http://localhost:3001.
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\install-autostart.ps1
+```
+
+This builds the frontend and backend and registers a scheduled task named **NTRX AppOps**: it runs at start-up and at logon and repeats every 15 minutes. Each run (`start-appops.ps1 -Restart`) replaces the backend with a fresh process, so keys, the public IP and errors are re-read. It runs as you and needs your `az login` session. After changing code, rebuild (`npm run build` in `backend` and `frontend`) and run the task again.
+
 ## Configure (`backend/.env`)
 
-```
-PORT=3001
-ARCHIVE_CONTAINER=archive
+All values are optional except how to find accounts (`STORAGE_DISCOVER` or `STORAGE_ACCOUNTS`).
 
-# Keyless (preferred): comma-separated account names
-STORAGE_ACCOUNTS=mseprdukssasrd01,tsiprduse2sasrd01,enxprdfrcsasrd01
+| Variable | Default | Purpose |
+|---|---|---|
+| `PORT` | `3001` | Backend / UI port |
+| `ARCHIVE_CONTAINER` | `archive` | Container checked on each SRD account |
+| `CHECK_TIMEOUT_MS` | `15000` | Per-account timeout before it is marked errored |
+| `STORAGE_DISCOVER` | `false` (`true` in `.env.example`) | Auto-discover accounts by name suffix |
+| `DISCOVER_SUFFIX` | `srd01` | Suffix to match when discovering |
+| `SUBSCRIPTIONS` | all you can see | Comma-separated subscription IDs to limit every query |
+| `STORAGE_ACCOUNTS` | – | Explicit account names instead of discovery |
+| `STORAGE_CONN_1..N` | – | Connection-string fallback (contains keys) |
+| `USE_MANAGED_IDENTITY` | – | `true` = managed identity instead of `az login` |
+| `REFRESH_MS` | `60000` | Background archive re-scan interval (the launcher sets `900000`) |
+| `SCAN_CONCURRENCY` | `10` | Accounts scanned in parallel |
+| `KEY_CONCURRENCY` | `32` | Account keys fetched in parallel at start-up |
+| `INFRA_CONCURRENCY` | `24` | Parallel Azure calls for bot / database checks |
+| `BOT_CONTAINER` | `audio-video` | Container checked in bot storage |
+| `BOT_ACCOUNT_PREFIX` | `botstorage` | Bot storage account name prefix (empty disables the check) |
+| `BOT_STUCK_MINUTES` | `60` | An interaction untouched this long counts as stuck |
+| `BOT_WINDOW_DAYS` | `3` | Only stuck interactions from the last N days are listed |
+| `BOT_TIMEOUT_MS` | `60000` | Time allowed per bot storage account |
+| `DTU_THRESHOLD` | `90` | DTU % above which a database is flagged |
+| `DTU_LOOKBACK_MINUTES` | `15` | How far back to find the latest DTU reading |
+| `FILES_CACHE_MS` / `FILES_TIMEOUT_MS` | `120000` / `60000` | Latest-files listing cache and timeout |
+| `RESTART_TASK` | `NTRX AppOps` | Scheduled task the Restart button runs |
+| `CHECK_DATE` | – | `YYYY-MM-DD` to test against a historical day |
 
-# Fallback only (contains keys):
-# STORAGE_CONN_1=DefaultEndpointsProtocol=https;AccountName=...;AccountKey=...
+## Firewall and your IP
+
+Most storage accounts only allow listed public IPs, and your IP changes with the network or VPN. A blocked account shows *"Blocked by the storage account's firewall"* with the IP Azure actually sees (re-read on every scan). The **Needs IP** panel gives you the lists; two scripts then add the IP:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\add-ip-to-srd.ps1          # SRD storage accounts
+powershell -ExecutionPolicy Bypass -File .\add-ip-to-botstorage.ps1   # the matching bot storage accounts
 ```
+
+Both ask for account names (one, or comma-separated) and your IP (Enter accepts the detected one), then show a **preview** of what happens on **Y**, let you **skip accounts by number**, and finish with a report (added / already present / ignored / not found / failed). They only append one IP to an existing allow list: they never open an account to all networks, change public access, or remove rules, and they skip private-endpoint-only accounts (private endpoints and no IP rules). Use `-DryRun` to preview only, `-Skip 4,7` and `-Yes` for non-interactive runs. Needs write access on the accounts.
 
 ## API
 
 | Endpoint | Purpose |
 |---|---|
-| `GET /api/health` | Liveness + how many accounts are configured |
-| `GET /api/check` | Cached result of the latest background scan (`?fresh=1` forces a live re-scan) |
-| `GET /api/files?account=&capture=&date=` | Latest 5 chat + 5 media files inside `archive/{capture}/{date}/` (date defaults to today; `?fresh=1` bypasses the 2-minute cache) |
+| `GET /api/health` | Liveness, account count, process start time |
+| `GET /api/check` | Cached archive scan (`?fresh=1` forces a live re-scan) |
+| `GET /api/files?account=&capture=&date=` | Latest 5 chat + 5 media files in `archive/{capture}/{date}/` (cached 2 min; `?fresh=1` bypasses) |
+| `GET /api/bots` | Cloud service inventory plus whatever has been checked |
+| `POST /api/bots/check` | Check bots: no params = all; `customer=&env=` one customer; `service=` one bot; `subscriptionId=` one subscription |
+| `GET /api/databases` | Database inventory plus whatever has been checked |
+| `POST /api/databases/check` | Check databases: no params = all; `server=`, `server=&db=`, or `subscriptionId=` |
+| `POST /api/restart` | Restart the backend via the scheduled task (Windows, local dashboard only) |
 
 ## Latest files per folder
 
-Opening an account in the detail drawer lists, for each capture folder, the
-newest 5 **chat** files (`.chat`) and the newest 5 **media** files (`.mp3`, plus
-other audio/video) in today's date folder. The sibling `.json` files are
-metadata and are only counted, not listed (or the newest folder if
-today is missing). A day folder can hold ~25k blobs and Azure only lists in name
-order, so the backend fans out 16 parallel listings by leading hex digit of the
-GUID file name, then keeps the newest N by last-modified. Results are cached for
-`FILES_CACHE_MS` (default 120000) and bounded by `FILES_TIMEOUT_MS` (default 60000).
+Opening an account's drawer lists, for each capture folder, the newest 5 **chat** files (`.chat`) and the newest 5 **media** files (`.mp3`, plus other audio/video) in today's date folder (or the newest folder if today is missing). `.json` metadata files are only counted. A day folder can hold ~25k blobs and Azure lists only in name order, so the backend runs 16 parallel listings by the leading hex digit of the GUID file name and keeps the newest N by last-modified.
 
 ## Tests
 
 ```powershell
 cd backend
-npm test        # unit tests for the pure check logic (no Azure needed)
+npm test            # pure-logic unit tests (no Azure needed)
+npm run typecheck
+cd ../frontend
+npm run typecheck
 ```
 
 ## Layout
 
 ```
-backend/
-  src/
-    config.ts     # env parsing (accounts, container, port)
-    azure.ts      # builds clients (identity preferred, conn-string fallback)
-    checker.ts    # pure today-folder logic + friendly error mapping
-    files.ts      # latest chat/media files inside a date folder
-    server.ts     # Express API
-    checker.test.ts
-frontend/
-  src/
-    App.tsx           # header, filters, auto-refresh, theme
-    components/       # SummaryBar, AccountCard, Badges
-    lib/              # api client + status/env styling helpers
+backend/src/
+  config.ts       # env parsing
+  azure.ts        # discovery, subscription names, runtime keys, bot-storage matching
+  checker.ts      # archive check + friendly error mapping
+  bot.ts          # bot storage: interactions stuck in audio-video
+  infra.ts        # on-demand bot-instance and database checks (Resource Graph + ARM REST)
+  files.ts        # latest chat/media files in a date folder
+  server.ts       # Express API (also serves the built UI)
+  types.ts, checker.test.ts
+frontend/src/
+  App.tsx         # header, tabs, shared search, filters, fullscreen, alerts wiring
+  components/     # CustomersView, AccountTable, BotsView, BotGroups, DatabasesView, DetailDrawer,
+                  # WatchlistSearch, Notifications, SidePanel, NeedsIpPanel, panels, charts, viewCharts
+  lib/            # api client, matching (watchMatch), on-demand hook, alerts + chime, fullscreen,
+                  # customer / bot grouping, count-up and theme helpers
+install-autostart.ps1   # one-time build + scheduled-task registration
+start-appops.ps1        # launcher the task runs (-Restart replaces the running backend)
+add-ip-to-srd.ps1, add-ip-to-botstorage.ps1
+CHANGELOG.md
 ```
+
+`SETUP.md` is the original step-by-step setup walkthrough; where it differs from this file, this file is current.
