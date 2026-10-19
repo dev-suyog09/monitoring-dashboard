@@ -872,3 +872,45 @@ html[data-fullscreen='true'] .dash { max-width: none; }
   font-size: 12px; font-weight: 600; color: var(--text-1); background: var(--card); border: 1px solid var(--border-strong); box-shadow: var(--shadow);
   animation: fade-in 0.2s ease;
 }
+
+
+/* ═════════════════════════════════════════════════════════════════════════
+   On-demand charts (Customers / Cloud Instances / Databases)
+   ═════════════════════════════════════════════════════════════════════════ */
+.charts-bar { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.charts-hint { font-size: 12px; color: var(--text-3); }
+.chart-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 12px; animation: chart-open 0.45s cubic-bezier(0.16, 1, 0.3, 1) both; }
+@keyframes chart-open { from { opacity: 0; transform: translateY(-10px) scale(0.985); } to { opacity: 1; transform: none; } }
+.chart-grid > .panel { animation: fade-up 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.chart-grid > .panel:nth-child(2) { animation-delay: 0.08s; }
+.chart-grid > .panel:nth-child(3) { animation-delay: 0.16s; }
+.chart-grid > .panel:nth-child(4) { animation-delay: 0.24s; }
+
+/* donut */
+.donut-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.donut-seg { animation: donut-in 0.95s cubic-bezier(0.22, 0.61, 0.36, 1) both; transition: stroke-width 0.15s, filter 0.15s; cursor: pointer; }
+@keyframes donut-in { from { stroke-dasharray: 0 var(--circ); } }
+.donut-legend { list-style: none; margin: 0; padding: 0; width: 100%; display: flex; flex-direction: column; gap: 5px; }
+.donut-legend li { display: flex; align-items: center; gap: 8px; padding: 4px 8px; border-radius: 8px; font-size: 12px; color: var(--text-2); animation: fade-up 0.45s ease both; transition: background 0.12s; }
+.donut-legend li.on, .donut-legend li:hover { background: var(--card-2); }
+.donut-legend .lg-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.donut-legend b { color: var(--text-1); }
+.donut-legend .lg-pct { color: var(--text-3); width: 38px; text-align: right; font-size: 11px; }
+
+/* bars */
+.hbars { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 11px; }
+.hbar-top { display: flex; justify-content: space-between; gap: 10px; font-size: 11.5px; margin-bottom: 4px; }
+.hbar-label { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar-val { color: var(--text-1); font-weight: 700; }
+.hbar-sub { font-size: 10.5px; color: var(--text-3); margin-top: 2px; }
+.hbar-track { position: relative; height: 10px; border-radius: 999px; background: var(--card-2); overflow: hidden; display: flex; }
+.hbar-fill, .hbar-seg { display: block; height: 100%; transform-origin: left center; animation: bar-in 0.85s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.hbar-fill { border-radius: 999px; }
+.hbar-seg:first-child { border-radius: 999px 0 0 999px; }
+.hbar-seg:last-child { border-radius: 0 999px 999px 0; }
+.hbar-seg:only-child { border-radius: 999px; }
+@keyframes bar-in { from { transform: scaleX(0); } }
+.hbar-marker { position: absolute; top: -2px; bottom: -2px; width: 2px; background: var(--text-1); opacity: 0.55; border-radius: 1px; }
+.stack-legend { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 12px; font-size: 11px; color: var(--text-3); }
+.stack-legend i { display: inline-block; width: 8px; height: 8px; border-radius: 3px; margin-right: 5px; }
+[data-theme='light'] .hbar-track { background: #ece7f6; }

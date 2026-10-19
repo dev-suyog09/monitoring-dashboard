@@ -1,6 +1,8 @@
 # monitoring-dashboard
 This is a professional proactive monitoring Dashboard by X-Factors
 
+See [CHANGELOG.md](./CHANGELOG.md) for what changed in each release.
+
 ---
 
 # SRD Archive Monitor

@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
 import type { DatabasesResponse, InfraDatabase } from '../types';
 import { Panel, StatPanel } from './panels';
+import { ChartsSection } from './charts';
+import { DbCharts } from './viewCharts';
 
 export type DbScope = { server?: string; db?: string; subscriptionId?: string };
 
@@ -210,6 +212,10 @@ export default function DatabasesView({
           onClick={() => pick('nobackup')}
         />
       </div>
+
+      <ChartsSection label="charts">
+        <DbCharts data={data} />
+      </ChartsSection>
 
       <div className="flex flex-wrap items-center gap-2">
         {(

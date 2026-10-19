@@ -3,6 +3,8 @@ import type { CheckResult } from '../types';
 import type { CustomerRow } from '../lib/customers';
 import { EnvBadge, StatusBadge } from './Badges';
 import { Panel } from './panels';
+import { ChartsSection } from './charts';
+import { CustomerCharts } from './viewCharts';
 
 type SortKey = 'name' | 'env' | 'archive' | 'bots' | 'dbs';
 
@@ -154,6 +156,10 @@ export default function CustomersView({
   ];
 
   return (
+    <>
+    <ChartsSection label="charts">
+      <CustomerCharts rows={rows} />
+    </ChartsSection>
     <Panel
       title={`Customers · ${rows.length} subscription${rows.length === 1 ? '' : 's'}`}
       right={<span className="panel-legend">{loading ? 'listing bots and databases…' : 'click a row for its SRD accounts'}</span>}
@@ -297,6 +303,7 @@ export default function CustomersView({
         </div>
       )}
     </Panel>
+    </>
   );
 }
 

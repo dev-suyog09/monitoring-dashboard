@@ -2,6 +2,8 @@ import { useMemo, useState } from 'react';
 import type { BotsResponse } from '../types';
 import { Panel, StatPanel } from './panels';
 import BotGroups, { type BotScope } from './BotGroups';
+import { ChartsSection } from './charts';
+import { BotCharts } from './viewCharts';
 import { instanceLevel, isDownState, LEVEL_SCOPE } from '../lib/instanceState';
 
 function StateChip({ status }: { status: string }) {
@@ -139,6 +141,10 @@ export default function BotsView({
           </button>
         </div>
       )}
+
+      <ChartsSection label="charts">
+        <BotCharts data={data} />
+      </ChartsSection>
 
       {stats.checked > 0 && f !== 'started' && (
         <Panel
