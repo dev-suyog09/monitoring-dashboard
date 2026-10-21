@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { AlertItem } from '../lib/alerts';
 import type { Toast } from '../lib/useAlerts';
+import { instanceLevel, LEVEL_SCOPE } from '../lib/instanceState';
 import SidePanel from './SidePanel';
 
 const shortInstance = (n: string) => n.split('.').pop() ?? n;
@@ -16,10 +17,11 @@ function ago(iso: string): string {
 
 function Entry({ i, index, onOpen }: { i: AlertItem; index: number; onOpen: () => void }) {
   const down = i.kind === 'down';
+  const scope = down ? LEVEL_SCOPE[instanceLevel(i.status)] : 'st-ok';
   return (
     <button
       type="button"
-      className={`alert-card ${down ? 'st-err' : 'st-ok'} ${i.read ? '' : 'alert-new'}`}
+      className={`alert-card ${scope} ${i.read ? '' : 'alert-new'}`}
       style={{ animationDelay: `${Math.min(index, 8) * 45}ms` }}
       onClick={onOpen}
     >
@@ -178,7 +180,7 @@ export function Toasts({
       {toasts.map((t) => (
         <div
           key={t.id}
-          className="toast st-err"
+          className={`toast ${LEVEL_SCOPE[t.level]}`}
           role="alert"
           onClick={() => {
             onOpen();

@@ -2,14 +2,36 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { BotsResponse } from '../types';
 import { diffAlerts, loadAlerts, loadDesktopPref, loadSoundPref, saveAlerts, saveDesktopPref, saveSoundPref, type AlertItem } from './alerts';
 import { playChime } from './chime';
+import { instanceLevel, type InstanceLevel } from './instanceState';
 
 export interface Toast {
   id: string;
   title: string;
   body: string;
+  level: InstanceLevel;
 }
 
 const MAX_TOASTS_PER_CHECK = 3;
+
+/** While the tab is in the background, blink the tab title so a new alert is noticed; stops when the tab is focused. */
+function flashTitle(n: number) {
+  if (typeof document === 'undefined' || document.hasFocus()) return;
+  const base = document.title.replace(/^\(\d+ down\) /, '');
+  let on = false;
+  const t = setInterval(() => {
+    on = !on;
+    document.title = on ? `(${n} down) ${base}` : base;
+  }, 1000);
+  const stop = () => {
+    if (!document.hasFocus()) return;
+    clearInterval(t);
+    document.title = base;
+    window.removeEventListener('focus', stop);
+    document.removeEventListener('visibilitychange', stop);
+  };
+  window.addEventListener('focus', stop);
+  document.addEventListener('visibilitychange', stop);
+}
 
 /** Watches the bot instances; raises a bell entry + toast when one newly goes Stopped / Unresponsive. */
 export function useAlerts(data: BotsResponse | null) {
@@ -42,11 +64,13 @@ export function useAlerts(data: BotsResponse | null) {
             id: d.id,
             title: `Instance ${d.status.toLowerCase()}`,
             body: `${d.instance.split('.').pop()} · ${d.cloudService}`,
+            level: instanceLevel(d.status),
           }))
         : [
             {
               id: `${downs[0]!.id}|batch`,
-              title: `${downs.length} instances stopped / unresponsive`,
+              title: `${downs.length} instances out of Started state`,
+              level: downs.some((d) => instanceLevel(d.status) === 'bad') ? ('bad' as const) : ('warn' as const),
               body: downs
                 .slice(0, 3)
                 .map((d) => d.cloudService)
@@ -54,9 +78,10 @@ export function useAlerts(data: BotsResponse | null) {
             },
           ];
     setToasts((t) => [...t, ...fresh].slice(-5));
+    flashTitle(downs.length);
     if (sound) playChime(); // cute "bu-bling" (silent until the page has had a click / key press)
 
-    if (desktop && typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden) {
+    if (desktop && typeof Notification !== 'undefined' && Notification.permission === 'granted' && !document.hasFocus()) {
       try {
         new Notification('Godzilla Health Monitor', {
           body: fresh.map((f) => `${f.title}: ${f.body}`).join('\n'),

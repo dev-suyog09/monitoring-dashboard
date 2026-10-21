@@ -153,11 +153,8 @@ export default function App() {
 
   // Browsers only allow sound after the user has touched the page: unlock audio on the first click / key press.
   useEffect(() => {
-    const unlock = () => {
-      unlockAudio();
-      window.removeEventListener('pointerdown', unlock);
-      window.removeEventListener('keydown', unlock);
-    };
+    // stays registered: any later click also re-wakes an audio context the browser suspended
+    const unlock = () => unlockAudio();
     window.addEventListener('pointerdown', unlock);
     window.addEventListener('keydown', unlock);
     return () => {

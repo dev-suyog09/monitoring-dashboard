@@ -4,6 +4,19 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-21 · Alerts for every non-Started state
+
+### Changed
+- **Alerts now cover every state other than Started** (Stopped, Unresponsive, Starting, Stopping, Aborted, Unknown, …),
+  not only the red ones. A change from one non-Started state to another alerts again; returning to Started adds a
+  "Recovered" entry. Red states get a red pop-up, yellow states an amber one; the tab badge still counts only red.
+- Background alerts: the tab title blinks "(N down) …" and the desktop notification (if enabled) fires whenever the
+  dashboard window is not focused, not only when the tab is hidden.
+
+### Fixed
+- **Alert tune:** the audio unlock stays registered, so any later click re-wakes an audio context the browser
+  suspended, and the chime wakes a suspended context itself instead of failing silently.
+
 ## 2026-10-19 · Clickable charts, reliable auto re-check
 
 ### Added

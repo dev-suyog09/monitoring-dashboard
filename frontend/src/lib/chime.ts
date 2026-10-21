@@ -63,12 +63,21 @@ export function unlockAudio(): void {
 export function playChime(): boolean {
   try {
     unlockAudio();
-    if (!ctx || ctx.state !== 'running') return false;
-    const master = ctx.createGain();
-    master.gain.value = 0.9;
-    master.connect(ctx.destination);
-    scheduleChime(ctx, master, ctx.currentTime + 0.02);
-    return true;
+    const c = ctx;
+    if (!c) return false;
+    const play = () => {
+      const master = c.createGain();
+      master.gain.value = 0.9;
+      master.connect(c.destination);
+      scheduleChime(c, master, c.currentTime + 0.02);
+    };
+    if (c.state === 'running') {
+      play();
+      return true;
+    }
+    // suspended (e.g. after the tab sat idle): wake it and play as soon as it is running
+    void c.resume().then(() => c.state === 'running' && play()).catch(() => undefined);
+    return false;
   } catch {
     return false;
   }

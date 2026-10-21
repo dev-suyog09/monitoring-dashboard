@@ -1,10 +1,11 @@
 import type { InfraCloudService, InfraInstance } from '../types';
-import { isDownState } from './instanceState';
+/** Every state other than Started is worth a notification (red: Stopped / Unresponsive, yellow: the rest). */
+const isAlertState = (status: string): boolean => status.trim().toLowerCase() !== 'started';
 
 /** One entry in the notification bell. */
 export interface AlertItem {
   id: string;
-  /** down = an instance went Stopped / Unresponsive; recovered = it came back. */
+  /** down = an instance left the Started state (any other state); recovered = it is Started again. */
   kind: 'down' | 'recovered';
   at: string;
   status: string;
@@ -79,8 +80,8 @@ export const saveSoundPref = (on: boolean): void => {
 
 /**
  * Pure: compare what was red before with the latest check.
- *  - an instance that is Stopped / Unresponsive now and wasn't before -> a "down" alert
- *  - one that was red and is present and no longer red               -> a "recovered" note
+ *  - an instance that is in a non-Started state now and wasn't before, or whose state changed -> an alert
+ *  - one that was not Started, is present and is Started again       -> a "recovered" note
  *  - one that was red but whose cloud service wasn't re-checked       -> stays red (state unknown, no alert)
  *  - one that vanished from a re-checked service (scaled in)          -> dropped silently
  */
@@ -107,10 +108,10 @@ export function diffAlerts(
   });
 
   for (const i of instances) {
-    if (!isDownState(i.status)) continue;
+    if (!isAlertState(i.status)) continue;
     const k = instKey(i);
     red[k] = i.status;
-    if (!(k in prevRed)) created.push(item('down', i));
+    if (prevRed[k] !== i.status) created.push(item('down', i)); // newly out of Started, or moved to another state
   }
   for (const [k, status] of Object.entries(prevRed)) {
     if (k in red) continue;

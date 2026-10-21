@@ -920,3 +920,7 @@ html[data-fullscreen='true'] .dash { max-width: none; }
 .hbars li.clickable { border-radius: 8px; padding: 3px 6px; margin: -3px -6px; transition: background 0.12s; }
 .hbars li.clickable:hover { background: var(--card-2); }
 .hbar-seg.clickable:hover { filter: brightness(1.15); }
+
+/* yellow (Starting / other) pop-ups use the amber palette instead of red */
+.toast.st-warn .toast-ico { background: linear-gradient(135deg, #fbbf24, var(--warn)); box-shadow: 0 0 16px color-mix(in srgb, var(--warn) 65%, transparent); }
+.toast.st-warn .toast-bar { background: linear-gradient(90deg, var(--warn), #fb923c); }
