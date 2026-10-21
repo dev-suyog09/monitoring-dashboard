@@ -62,3 +62,47 @@ export function matchesFilter(name: string, terms: string[], draft: string): boo
 export function matchesWatch(name: string, terms: string[]): boolean {
   return terms.length === 0 || terms.some((t) => matchesTerm(name, t));
 }
+
+// ---- Subscription-name matching (chips are full subscription names, e.g. "azu-nvm-fmc-ncc-prd-db") ----
+
+const lastSegment = (n: string) => n.split(/[-_ ]/).pop() ?? n;
+/** True when `p` starts the name or any dash-separated part of it ("db", "prd-d", "ncc-prd" all find azu-nvm-fmc-ncc-prd-db). */
+const subPrefix = (n: string, p: string) => {
+  for (let i = 0; i < n.length; i++) if ((i === 0 || /[-_ ]/.test(n[i - 1]!)) && n.startsWith(p, i)) return true;
+  return false;
+};
+
+/** Key a resource is filtered by: its subscription name, or (if unknown) its customer code. */
+export function scopeKey(subscription: string | undefined, resource: string): string {
+  return (subscription || customerOf(resource)).toLowerCase();
+}
+
+/** True when `typed` should suggest / match this subscription (prefix of the name or of its last segment). */
+export function subSuggestHit(sub: string, typed: string): boolean {
+  return subPrefix(sub.toLowerCase(), typed.toLowerCase());
+}
+
+function subMatchesTerm(sub: string, term: string): boolean {
+  const t = term.trim().toLowerCase();
+  if (!t) return false;
+  const n = sub.toLowerCase();
+  if (t.endsWith('*')) {
+    const p = t.slice(0, -1);
+    return p.length > 0 && subPrefix(n, p);
+  }
+  return t === n || t === lastSegment(n); // last segment keeps older saved groups ("snc", "db") working
+}
+
+/** Chips (OR) narrowed by what is typed (AND); a trailing space means "exactly this subscription". */
+export function subMatchesFilter(sub: string, terms: string[], draft: string): boolean {
+  if (terms.length > 0 && !terms.some((t) => subMatchesTerm(sub, t))) return false;
+  const d = draft.trim().toLowerCase().replace(/\*+$/, '');
+  if (!d) return true;
+  const n = sub.toLowerCase();
+  if (/\s$/.test(draft)) return n === d || lastSegment(n) === d;
+  return subPrefix(n, d);
+}
+
+export function subMatchesWatch(sub: string, terms: string[]): boolean {
+  return terms.length === 0 || terms.some((t) => subMatchesTerm(sub, t));
+}

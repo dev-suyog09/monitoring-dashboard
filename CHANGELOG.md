@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
+All notable changes to **NTR-X Azure Dashboard** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 

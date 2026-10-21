@@ -15,9 +15,10 @@ import { coverageSeries, isMonitorable } from './lib/history';
 import { loadGroups, saveGroups, type WatchGroup } from './lib/watchlist';
 import { Panel, StatPanel, CoverageChart, Gauge } from './components/panels';
 import WatchlistSearch, { type CustomerSuggestion } from './components/WatchlistSearch';
-import { matchesWatch, matchesFilter, envOf, customerOf, type EnvName } from './lib/watchMatch';
+import { subMatchesWatch, subMatchesFilter, scopeKey, envOf, type EnvName } from './lib/watchMatch';
 import AccountTable from './components/AccountTable';
 import DetailDrawer from './components/DetailDrawer';
+import { Icon } from './components/navIcons';
 import NeedsIpPanel from './components/NeedsIpPanel';
 import BotsView from './components/BotsView';
 import DatabasesView, { type DbScope } from './components/DatabasesView';
@@ -187,7 +188,7 @@ export default function App() {
 
   const watched = useMemo(() => {
     if (!filtering) return results;
-    return results.filter((r) => matchesFilter(r.accountName, terms, draft));
+    return results.filter((r) => subMatchesFilter(scopeKey(r.subscription, r.accountName), terms, draft));
   }, [results, terms, draft, filtering]);
 
   // PROD / UAT / DEV selected -> the stat cards, Health today and the coverage chart describe just that
@@ -239,28 +240,28 @@ export default function App() {
     if (!bots.data || !filtering) return bots.data;
     return {
       ...bots.data,
-      cloudServices: bots.data.cloudServices.filter((c) => matchesFilter(c.name, terms, draft)),
-      instances: bots.data.instances.filter((i) => matchesFilter(i.cloudService, terms, draft)),
+      cloudServices: bots.data.cloudServices.filter((c) => subMatchesFilter(scopeKey(c.subscription, c.name), terms, draft)),
+      instances: bots.data.instances.filter((i) => subMatchesFilter(scopeKey(i.subscription, i.cloudService), terms, draft)),
     };
   }, [bots.data, terms, draft, filtering]);
   const dbsWatched = useMemo<DatabasesResponse | null>(() => {
     if (!dbs.data || !filtering) return dbs.data;
-    return { ...dbs.data, databases: dbs.data.databases.filter((d) => matchesFilter(d.server, terms, draft)) };
+    return { ...dbs.data, databases: dbs.data.databases.filter((d) => subMatchesFilter(scopeKey(d.subscription, d.server), terms, draft)) };
   }, [dbs.data, terms, draft, filtering]);
 
   // Every customer we know about (from accounts, bots and databases), for the search suggestions.
   const suggestions = useMemo<CustomerSuggestion[]>(() => {
     const m = new Map<string, { srd: number; bots: number; dbs: Set<string>; inGroup: boolean }>();
-    const at = (name: string) => {
-      const code = customerOf(name);
+    const at = (sub: string | undefined, name: string) => {
+      const code = scopeKey(sub, name);
       let e = m.get(code);
       if (!e) m.set(code, (e = { srd: 0, bots: 0, dbs: new Set(), inGroup: false }));
-      if (terms.length > 0 && matchesWatch(name, terms)) e.inGroup = true;
+      if (terms.length > 0 && subMatchesWatch(code, terms)) e.inGroup = true;
       return e;
     };
-    for (const r of results) at(r.accountName).srd++;
-    for (const c of bots.data?.cloudServices ?? []) at(c.name).bots++;
-    for (const d of dbs.data?.databases ?? []) at(d.server).dbs.add(d.server);
+    for (const r of results) at(r.subscription, r.accountName).srd++;
+    for (const c of bots.data?.cloudServices ?? []) at(c.subscription, c.name).bots++;
+    for (const d of dbs.data?.databases ?? []) at(d.subscription, d.server).dbs.add(d.server);
     return [...m.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([code, e]) => ({
@@ -367,53 +368,76 @@ export default function App() {
     { key: 'no_data', label: 'No SRD', value: counts.no_data, scope: 'st-idle' },
   ];
 
-  return (
-    <div className="page">
-      <div className="dash">
-        {/* ── Header: brand left, date + last health check at the extreme right ── */}
-        <header className="hdr">
-          <div className="hdr-top">
-            <div className="brand">
-              <span className="brand-mark" aria-hidden>
-                <svg width="26" height="26" viewBox="0 0 64 64">
-                  <path
-                    d="M6 38 L18 38 L24 22 L31 48 L38 14 L45 42 L50 38 L58 38"
-                    fill="none"
-                    stroke="#fff"
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </span>
-              <span className="brand-text">
-                <span className="brand-title">Godzilla Health Monitor</span>
-                <span className="brand-sub">
-                  <span className="dot pulse" style={{ background: 'var(--ok)', width: 7, height: 7 }} />
-                  NTRX AppOps · live
-                </span>
-              </span>
-            </div>
+  const issueCount = counts.error + counts.missing_today + botIssues + dbIssues;
+  const VIEW_TITLE: Record<View, [string, string]> = {
+    customers: ['Customers', 'Archive, bots and databases per subscription'],
+    archive: ['SRD Archive', "Today's archive date-folder on every *srd01 account"],
+    bots: ['Cloud Instances', 'Bot instances across your cloud services'],
+    dbs: ['Databases', 'SQL databases: status, storage and DTU'],
+  };
 
-            <div className="hdr-meta">
-              <div className="hdr-meta-text">
-                <span className="hdr-date mono">
-                  {today ? new Date(`${today}T00:00:00`).toLocaleDateString([], { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : '…'}
-                </span>
-                <span className="hdr-sub">
-                  Last health check{' '}
-                  <span className="mono" style={{ color: 'var(--text-2)', fontWeight: 700 }}>
-                    {shownRefresh ? shownRefresh.toLocaleTimeString() : 'not yet'}
-                  </span>
-                  {data?.egressIp && (
-                    <>
-                      {' '}
-                      · src <span className="mono">{data.egressIp}</span>
-                    </>
-                  )}
-                </span>
-              </div>
-              <NotificationBell
+  return (
+    <div className="app">
+        <aside className="side">
+          <div className="side-brand">
+            <span className="brand-mark" aria-hidden>
+              <Icon name="pulse" size={20} />
+            </span>
+            <span className="brand-text">
+              <span className="brand-title">NTR-X Azure Dashboard</span>
+              <span className="brand-sub">NTRX AppOps</span>
+            </span>
+          </div>
+          <nav className="side-nav">
+            {([
+              ['customers', 'Customers', 'customers', 0],
+              ['archive', 'Archive', 'archive', 0],
+              ['bots', 'Cloud Instances', 'bots', botIssues],
+              ['dbs', 'Databases', 'dbs', dbIssues],
+            ] as const).map(([key, label, icon, badge]) => (
+              <button key={key} className={`side-item ${view === key ? 'side-on' : ''}`} onClick={() => setView(key)}>
+                <Icon name={icon} />
+                <span>{label}</span>
+                {badge > 0 && <span className="tab-badge">{badge}</span>}
+              </button>
+            ))}
+          </nav>
+          <div className="side-foot">
+            <span className="dot pulse" style={{ background: 'var(--ok)', width: 8, height: 8 }} />
+            <span className="side-foot-text">
+              <strong>Live monitoring</strong>
+              <span className="mono">{data?.egressIp ? `src ${data.egressIp}` : 'connecting…'}</span>
+            </span>
+          </div>
+        </aside>
+
+        <div className="main">
+        <header className="topbar">
+          {/* ── Shared search + groups (same on every tab) ── */}
+        <WatchlistSearch
+          terms={terms}
+          setTerms={setTerms}
+          groups={groups}
+          setGroups={updateGroups}
+          suggestions={suggestions}
+          onDraft={setDraft}
+          matchCount={
+            view === 'archive'
+              ? counts.all
+              : view === 'customers'
+                ? customerRows.length
+                : view === 'bots'
+                  ? (botsShown?.cloudServices.length ?? 0)
+                  : (dbsShown?.databases.length ?? 0)
+          }
+          />
+          <span className={`sys-pill ${issueCount === 0 ? 'sys-ok' : 'sys-warn'}`}>
+            <span className="dot" style={{ background: 'var(--c)' }} />
+            {issueCount === 0 ? 'All systems healthy' : `${issueCount} need attention`}
+            <span className="sys-pct mono">{counts.pct}%</span>
+          </span>
+          <div className="topbar-tools">
+            <NotificationBell
                 items={alerts.items}
                 unread={alerts.unread}
                 onOpenItem={(item) => {
@@ -430,10 +454,10 @@ export default function App() {
                 onToggleSound={alerts.toggleSound}
                 onPreviewSound={alerts.previewSound}
               />
-              <button className="icirc" onClick={toggleMode} title="Toggle light / dark" aria-label="Toggle theme">
+            <button className="icirc" onClick={toggleMode} title="Toggle light / dark" aria-label="Toggle theme">
                 {mode === 'dark' ? '☀️' : '🌙'}
               </button>
-              {fullscreen.supported && (
+            {fullscreen.supported && (
                 <span className="fs-wrap">
                 <button
                   className="icirc"
@@ -452,26 +476,20 @@ export default function App() {
                 {fullscreen.blocked && <span className="fs-hint">Your browser blocked full screen here — press F11</span>}
                 </span>
               )}
-            </div>
           </div>
+        </header>
 
-          <nav className="hdr-bar">
-            <div className="tabs">
-          <button className={`tab ${view === 'customers' ? 'tab-on' : ''}`} onClick={() => setView('customers')}>
-            Customers
-          </button>
-          <button className={`tab ${view === 'archive' ? 'tab-on' : ''}`} onClick={() => setView('archive')}>
-            Archive
-          </button>
-          <button className={`tab ${view === 'bots' ? 'tab-on' : ''}`} onClick={() => setView('bots')}>
-            Cloud Instances{botIssues > 0 && <span className="tab-badge">{botIssues}</span>}
-          </button>
-          <button className={`tab ${view === 'dbs' ? 'tab-on' : ''}`} onClick={() => setView('dbs')}>
-            Databases{dbIssues > 0 && <span className="tab-badge">{dbIssues}</span>}
-          </button>
-
-            </div>
-            <div className="hdr-actions">
+      <div className="dash">
+        {/* ── Header: brand left, date + last health check at the extreme right ── */}
+        <div className="page-head">
+          <div>
+            <h1 className="page-title">{VIEW_TITLE[view][0]}</h1>
+            <p className="page-sub">
+              {VIEW_TITLE[view][1]} · {today ? new Date(`${today}T00:00:00`).toLocaleDateString([], { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : '…'} · last check{' '}
+              <span className="mono">{shownRefresh ? shownRefresh.toLocaleTimeString() : 'not yet'}</span>
+            </p>
+          </div>
+          <div className="hdr-actions">
             <button
               className={`pill ${needsIpCount > 0 ? 'pill-on' : ''}`}
               onClick={() => setShowNeeds(true)}
@@ -532,32 +550,13 @@ export default function App() {
                       : '⟳ Check everything'}
             </button>
             </div>
-          </nav>
-        </header>
+        </div>
 
         {restartMsg && (
           <div className="banner banner-warm">
             ↻ {restartMsg} This takes 1-4 minutes — the dashboard updates automatically.
           </div>
         )}
-        {/* ── Shared search + groups (same on every tab) ── */}
-        <WatchlistSearch
-          terms={terms}
-          setTerms={setTerms}
-          groups={groups}
-          setGroups={updateGroups}
-          suggestions={suggestions}
-          onDraft={setDraft}
-          matchCount={
-            view === 'archive'
-              ? counts.all
-              : view === 'customers'
-                ? customerRows.length
-                : view === 'bots'
-                  ? (botsShown?.cloudServices.length ?? 0)
-                  : (dbsShown?.databases.length ?? 0)
-          }
-        />
 
         {view !== 'archive' && (
           <div className="flex flex-wrap items-center gap-2">
@@ -587,7 +586,11 @@ export default function App() {
             dbsChecking={dbs.checking}
             onCheckBots={(id) => void bots.check(`sub:${id}`, { subscriptionId: id })}
             onCheckDbs={(id) => void dbs.check(`sub:${id}`, { subscriptionId: id })}
-            onSelectAccount={(a) => setSelected(a.accountName)}
+            today={today}
+            egressIp={data?.egressIp}
+            thresholds={{ storage: dbs.data?.storageThreshold ?? 75, dtu: dbs.data?.dtuThreshold ?? 90 }}
+            archiveBusy={loading}
+            onRefreshArchive={() => void load(true)}
           />
         )}
 
@@ -740,9 +743,10 @@ export default function App() {
           </>
         )}
         <footer className="dash-foot">
-          Godzilla Health Monitor · NTRX AppOps · bots and databases re-check every 15 min while this page is open
+          NTR-X Azure Dashboard · NTRX AppOps · bots and databases re-check every 15 min while this page is open
         </footer>
       </div>
+        </div>
 
       {confirmRestart && (
         <SidePanel

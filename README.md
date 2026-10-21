@@ -5,7 +5,7 @@ See [CHANGELOG.md](./CHANGELOG.md) for what changed in each release.
 
 ---
 
-# Godzilla Health Monitor (NTRX AppOps)
+# NTR-X Azure Dashboard (NTRX AppOps)
 
 One dashboard for the health of every customer deployment across your Azure subscriptions:
 

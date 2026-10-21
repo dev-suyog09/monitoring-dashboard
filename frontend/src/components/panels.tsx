@@ -1,3 +1,4 @@
+import { Icon } from './navIcons';
 import { useId, useState, type ReactNode } from 'react';
 import { useCountUp } from '../lib/useCountUp';
 import type { DayPoint } from '../lib/history';
@@ -102,9 +103,19 @@ export function StatPanel({
       onClick={onClick}
       type={onClick ? 'button' : undefined}
     >
-      <div className="stat-label">{label}</div>
-      <div className="stat-val mono" style={{ color: scope ? 'var(--c-fg)' : 'var(--text-1)' }}>
-        <AnimatedValue value={value} />
+      <div className="stat-top">
+        <span className="stat-label">{label}</span>
+        <span className="stat-ico">
+          <Icon name={scope === 'st-ok' ? 'ok' : scope === 'st-warn' ? 'warn' : scope === 'st-err' ? 'err' : scope === 'st-idle' ? 'idle' : 'total'} />
+        </span>
+      </div>
+      <div className="stat-mid">
+        <div className="stat-val mono">
+          <AnimatedValue value={value} />
+        </div>
+        <span className="stat-badge">
+          {scope === 'st-ok' ? 'Healthy' : scope === 'st-warn' ? 'Warning' : scope === 'st-err' ? 'Critical' : scope === 'st-idle' ? 'No SRD' : 'Total'}
+        </span>
       </div>
       {spark && spark.length > 0 ? (
         <Sparkline values={spark} color={sparkColor ?? 'var(--c)'} />

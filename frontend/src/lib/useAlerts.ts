@@ -58,7 +58,7 @@ export function useAlerts(data: BotsResponse | null) {
 
     if (desktop && typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.hidden) {
       try {
-        new Notification('Godzilla Health Monitor', {
+        new Notification('NTR-X Azure Dashboard', {
           body: fresh.map((f) => `${f.title}: ${f.body}`).join('\n'),
           tag: 'godzilla-instance-down',
         });

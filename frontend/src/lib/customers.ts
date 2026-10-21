@@ -1,4 +1,4 @@
-import type { BotsResponse, CheckResult, DatabasesResponse, InfraDatabase } from '../types';
+import type { BotsResponse, CheckResult, DatabasesResponse, InfraCloudService, InfraDatabase, InfraInstance } from '../types';
 import { detectEnv } from './ui';
 import { envOf, type EnvName } from './watchMatch';
 import { isDownState } from './instanceState';
@@ -10,6 +10,10 @@ export interface CustomerRow {
   name: string;
   env: EnvName;
   accounts: CheckResult[];
+  /** Raw bot / database rows, for the inline detail panel. */
+  botServices: InfraCloudService[];
+  botInstances: InfraInstance[];
+  databases: InfraDatabase[];
   archive: { healthy: number; monitorable: number; errors: number };
   bots: {
     services: number;
@@ -61,6 +65,9 @@ export function buildCustomerRows(
         name: name || 'Unknown subscription',
         env: 'OTHER',
         accounts: [],
+        botServices: [],
+        botInstances: [],
+        databases: [],
         archive: { healthy: 0, monitorable: 0, errors: 0 },
         bots: { services: 0, checked: 0, instances: 0, started: 0, down: 0, starting: 0, unreadable: 0, checkedAt: null },
         dbs: { total: 0, checked: 0, issues: 0, issueText: [], checkedAt: null },
@@ -80,6 +87,7 @@ export function buildCustomerRows(
 
   for (const c of bots?.cloudServices ?? []) {
     const r = get(c.subscriptionId, c.subscription);
+    r.botServices.push(c);
     r.bots.services++;
     if (c.checkedAt) {
       r.bots.checked++;
@@ -89,6 +97,7 @@ export function buildCustomerRows(
   }
   for (const i of bots?.instances ?? []) {
     const r = get(i.subscriptionId, i.subscription);
+    r.botInstances.push(i);
     r.bots.instances++;
     if (i.status === 'Started') r.bots.started++;
     else if (isDownState(i.status)) r.bots.down++;
@@ -99,6 +108,7 @@ export function buildCustomerRows(
   const dtuCrit = dbs?.dtuThreshold ?? 90;
   for (const d of dbs?.databases ?? []) {
     const r = get(d.subscriptionId, d.subscription);
+    r.databases.push(d);
     r.dbs.total++;
     if (d.checkedAt) {
       r.dbs.checked++;

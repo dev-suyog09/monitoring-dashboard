@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
-import type { CheckResult } from '../types';
 import type { CustomerRow } from '../lib/customers';
-import { EnvBadge, StatusBadge } from './Badges';
+import { EnvBadge } from './Badges';
+import CustomerDetail from './CustomerDetail';
 import { Panel } from './panels';
 import { ChartsSection } from './charts';
 import { CustomerCharts, type CustPick } from './viewCharts';
@@ -93,7 +93,11 @@ export default function CustomersView({
   dbsChecking,
   onCheckBots,
   onCheckDbs,
-  onSelectAccount,
+  today,
+  egressIp,
+  thresholds,
+  archiveBusy,
+  onRefreshArchive,
 }: {
   rows: CustomerRow[];
   loading: boolean;
@@ -101,7 +105,11 @@ export default function CustomersView({
   dbsChecking: string | null;
   onCheckBots: (subscriptionId: string) => void;
   onCheckDbs: (subscriptionId: string) => void;
-  onSelectAccount: (a: CheckResult) => void;
+  today: string;
+  egressIp?: string | null;
+  thresholds: { storage: number; dtu: number };
+  archiveBusy: boolean;
+  onRefreshArchive: () => void;
 }) {
   const [sort, setSort] = useState<SortKey>('archive');
   const [dir, setDir] = useState<'asc' | 'desc'>('asc');
@@ -188,7 +196,7 @@ export default function CustomersView({
     )}
     <Panel
       title={`Customers · ${rows.length} subscription${rows.length === 1 ? '' : 's'}`}
-      right={<span className="panel-legend">{loading ? 'listing bots and databases…' : 'click a row for its SRD accounts'}</span>}
+      right={<span className="panel-legend">{loading ? 'listing bots and databases…' : 'click a row for its archive, bots and databases'}</span>}
       bodyClass="panel-bd-flush"
     >
       {rows.length === 0 ? (
@@ -286,38 +294,24 @@ export default function CustomersView({
                       </td>
 
                     </tr>
-                    {isOpen &&
-                      r.accounts.map((acct) => (
-                        <tr key={acct.accountName} style={{ background: 'var(--card-2)', cursor: 'default' }}>
-                          <td className="mono" style={{ paddingLeft: 38, color: 'var(--text-2)' }}>
-                            {acct.accountName}
-                          </td>
-                          <td />
-                          <td>
-                            <StatusBadge status={acct.status} />{' '}
-                            {acct.status !== 'error' && acct.status !== 'no_data' && (
-                              <span className="mono" style={{ color: 'var(--text-3)', fontSize: 12 }}>
-                                · {acct.capturesWithToday}/{acct.capturesTotal}
-                              </span>
-                            )}
-                          </td>
-                          <td>
-                            <button
-                              type="button"
-                              style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-2)', fontSize: 12 }}
-                              onClick={() => onSelectAccount(acct)}
-                            >
-                              open details →
-                            </button>
-                          </td>
-                          <td />
-                          <td />
-                        </tr>
-                      ))}
-                    {isOpen && r.accounts.length === 0 && (
-                      <tr style={{ background: 'var(--card-2)', cursor: 'default' }}>
-                        <td colSpan={6} style={{ paddingLeft: 38, color: 'var(--text-3)', fontSize: 12 }}>
-                          No SRD storage account in this subscription.
+                    {isOpen && (
+                      <tr className="cd-tr">
+                        <td colSpan={6}>
+                          <CustomerDetail
+                            row={r}
+                            today={today}
+                            egressIp={egressIp}
+                            thresholds={thresholds}
+                            botsBusy={botsBusy}
+                            dbsBusy={dbsBusy}
+                            anyBusy={botsChecking !== null || dbsChecking !== null}
+                            archiveBusy={archiveBusy}
+                            onRecheck={() => {
+                              onCheckBots(r.subscriptionId);
+                              onCheckDbs(r.subscriptionId);
+                            }}
+                            onRefreshArchive={onRefreshArchive}
+                          />
                         </td>
                       </tr>
                     )}

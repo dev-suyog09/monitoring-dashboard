@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import type { WatchGroup } from '../lib/watchlist';
 import SidePanel from './SidePanel';
+import { subSuggestHit } from '../lib/watchMatch';
 
 export interface CustomerSuggestion {
-  /** Customer code, e.g. "adc". */
+  /** Subscription name, e.g. "azu-nvm-fmc-ncc-prd-db". */
   code: string;
   /** e.g. "1 SRD · 3 bots · 3 dbs". */
   detail: string;
@@ -50,8 +51,8 @@ export default function WatchlistSearch({
 
   const q = draft.trim().toLowerCase();
   const scoped = terms.length > 0; // a group is active: typing narrows within it
-  const inMatches = q && scoped ? suggestions.filter((s) => s.inFilter && s.code.startsWith(q)).slice(0, 14) : [];
-  const addMatches = q ? suggestions.filter((s) => (!scoped || !s.inFilter) && s.code.startsWith(q)).slice(0, 14) : [];
+  const inMatches = q && scoped ? suggestions.filter((s) => s.inFilter && subSuggestHit(s.code, q)).slice(0, 14) : [];
+  const addMatches = q ? suggestions.filter((s) => (!scoped || !s.inFilter) && subSuggestHit(s.code, q)).slice(0, 14) : [];
   // one flat list so arrow keys walk "in this filter" first, then "add to filter"
   const rows = [
     ...inMatches.map((s) => ({ s, kind: 'narrow' as const })),
@@ -130,12 +131,17 @@ export default function WatchlistSearch({
     <div className="wl-wrap">
       <div className="wl-field">
       <div className="wl" onClick={() => inputRef.current?.focus()}>
-        <span className="wl-ico" aria-hidden style={{ color: 'var(--text-3)', fontSize: 13 }}>🔍</span>
+        <svg className="wl-ico" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+          <circle cx="11" cy="11" r="7" />
+          <path d="M20 20l-3.5-3.5" />
+        </svg>
         {terms.map((t) => (
           <span key={t} className="wchip">
             {t}
             <button type="button" onClick={() => removeTerm(t)} aria-label={`Remove ${t}`}>
-              ✕
+              <svg width="9" height="9" viewBox="0 0 10 10" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden>
+                <path d="M2 2l6 6M8 2l-6 6" />
+              </svg>
             </button>
           </span>
         ))}
@@ -146,7 +152,7 @@ export default function WatchlistSearch({
           onKeyDown={onKeyDown}
           onFocus={() => setFocus(true)}
           onBlur={() => setTimeout(() => setFocus(false), 120)}
-          placeholder={terms.length ? 'search within these customers…  (or add another)' : 'search customers… type a letter, e.g. n, adc, atd'}
+          placeholder={terms.length ? 'search within these customers…  (or add another)' : 'search subscriptions… type a letter, e.g. azu, db, snc'}
           autoComplete="off"
           spellCheck={false}
         />
@@ -159,7 +165,7 @@ export default function WatchlistSearch({
         <div className="wl-suggest" role="listbox">
           {rows.length === 0 ? (
             <div className="wl-empty">
-              No customer starts with “{draft.trim()}”{scoped ? ' — in this filter or elsewhere' : ''}.
+              No subscription matches “{draft.trim()}”{scoped ? ' — in this filter or elsewhere' : ''}.
             </div>
           ) : (
             <>
@@ -182,7 +188,7 @@ export default function WatchlistSearch({
                     onMouseEnter={() => setHi(i)}
                     onClick={() => choose(row)}
                   >
-                    <span className="mono wl-suggest-code">{row.s.code.toUpperCase()}</span>
+                    <span className="mono wl-suggest-code">{row.s.code}</span>
                     <span className="wl-suggest-detail">{row.s.detail}</span>
                     {row.kind === 'add' && scoped && <span className="wl-suggest-add">＋ add</span>}
                   </button>
@@ -207,16 +213,16 @@ export default function WatchlistSearch({
         {terms.length > 0 && (
           <>
             <button className="pill" type="button" onClick={saveAsGroup} title="Save these customers as a named group">
-              ★ Save group
+              ★ Save
             </button>
             <button className="pill" type="button" onClick={() => setTerms([])} title="Clear watchlist">
-              Clear
+              Clear all
             </button>
           </>
         )}
         <div className="wl-menu" ref={menuRef}>
           <button className="pill" type="button" onClick={() => setMenuOpen((o) => !o)} title="Saved groups">
-            Groups {groups.length > 0 ? `(${groups.length})` : ''} ▾
+            ☆ Groups{groups.length > 0 && <span className="wl-gcount">{groups.length}</span>}
           </button>
           {menuOpen && (
             <div className="wl-dropdown">
@@ -235,7 +241,7 @@ export default function WatchlistSearch({
                       onClick={() => deleteGroup(g.name)}
                       aria-label={`Delete group ${g.name}`}
                     >
-                      🗑
+                      ✕
                     </button>
                   </div>
                 ))
