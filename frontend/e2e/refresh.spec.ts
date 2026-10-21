@@ -15,6 +15,71 @@ async function countChecks(page: Page) {
   return calls;
 }
 
+test.describe('"Last health check" time', () => {
+  test.afterEach(async ({ page }) => {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+  });
+
+  /** Stamps every result the backend would return with "now", so each refresh has a new time. */
+  async function stampNow(page: Page) {
+    await page.route('**/api/bots/check**', async (route) => {
+      const j = await (await page.request.get('/api/bots')).json();
+      for (const c of j.cloudServices) c.checkedAt = new Date().toISOString();
+      await route.fulfill({ json: j });
+    });
+    await page.route('**/api/databases/check**', async (route) => {
+      const j = await (await page.request.get('/api/databases')).json();
+      for (const d of j.databases) d.checkedAt = new Date().toISOString();
+      await route.fulfill({ json: j });
+    });
+    await page.route('**/api/check**', async (route) => {
+      const j = await (await page.request.get('/api/check')).json();
+      j.generatedAt = new Date().toISOString();
+      await route.fulfill({ json: j });
+    });
+  }
+  const shown = (page: Page) => page.locator('.page-sub .mono').nth(1).innerText();
+
+  test('the Cloud Instances tab updates the time on every refresh', async ({ page }) => {
+    await stampNow(page);
+    await start(page);
+    await goTab(page, 'Cloud');
+    const before = await shown(page);
+    await page.waitForTimeout(1300);
+    await page.getByRole('button', { name: /Check all bots/ }).click();
+    await expect.poll(() => shown(page)).not.toBe(before);
+    const mid = await shown(page);
+    await page.waitForTimeout(1300);
+    await page.getByRole('button', { name: /Check all bots/ }).click();
+    await expect.poll(() => shown(page)).not.toBe(mid);
+  });
+
+  test('the Databases tab updates the time on every refresh', async ({ page }) => {
+    await stampNow(page);
+    await start(page);
+    await goTab(page, 'Data');
+    const before = await shown(page);
+    await page.waitForTimeout(1300);
+    await page.getByRole('button', { name: /Check all databases/ }).click();
+    await expect.poll(() => shown(page)).not.toBe(before);
+  });
+
+  test('the Customers tab updates the time when everything is refreshed', async ({ page }) => {
+    await stampNow(page);
+    await start(page);
+    const before = await shown(page);
+    await page.waitForTimeout(1300);
+    await page.getByRole('button', { name: /Check everything/ }).click();
+    await expect.poll(() => shown(page)).not.toBe(before);
+  });
+
+  test('shows a real time even for data that was checked before this page opened', async ({ page }) => {
+    await start(page);
+    await goTab(page, 'Archive');
+    await expect(page.locator('.page-sub')).not.toContainText('not yet');
+  });
+});
+
 test.describe('Auto re-check follows the interval chosen in Settings', () => {
   test.afterEach(async ({ page }) => {
     await page.unrouteAll({ behavior: 'ignoreErrors' }); // stop the fake responders before the page closes

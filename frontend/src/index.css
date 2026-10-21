@@ -1575,3 +1575,8 @@ input:focus-visible { outline-offset: 1px; }
 .chip-mini { font-size: 10.5px !important; padding: 2px 8px !important; }
 .prog-cell { flex-wrap: wrap; }
 .cd-note { margin: 8px 0 0; padding: 8px 12px; border-radius: 12px; font-size: 12px; line-height: 1.45; color: var(--text-2); background: color-mix(in srgb, var(--warn) 12%, transparent); }
+
+/* big numbers never run under the ring beside them */
+.metric-main { flex: 1; min-width: 0; }
+.metric-val { font-size: clamp(21px, 2.1vw, 30px); white-space: nowrap; }
+.mring { margin-left: auto; }

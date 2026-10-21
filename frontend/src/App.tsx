@@ -396,14 +396,27 @@ export default function App() {
         ((d.usedPct !== null && d.usedPct > crit) || (d.dtuPct !== null && d.dtuPct > dtuCrit)),
     ).length;
   }, [dbsShown]);
-  const shownRefresh =
-    view === 'archive'
-      ? lastRefresh
-      : view === 'bots'
-        ? bots.lastCheck
-        : view === 'dbs'
-          ? dbs.lastCheck
-          : [bots.lastCheck, dbs.lastCheck].filter((d): d is Date => !!d).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+  // "Last health check" = when the data on screen was actually gathered: the newest of what this page fetched itself and
+  // the times the backend stamped on the results (so it moves on every refresh, and also shows for data that was already
+  // checked before the page was opened). The Customers tab shows the newest of archive, bots and databases.
+  const newest = (...times: (Date | string | null | undefined)[]): Date | null => {
+    let best: Date | null = null;
+    for (const t of times) {
+      if (!t) continue;
+      const d = t instanceof Date ? t : new Date(t);
+      if (!Number.isNaN(d.getTime()) && (!best || d.getTime() > best.getTime())) best = d;
+    }
+    return best;
+  };
+  const archiveAt = newest(lastRefresh, data?.warming ? null : data?.generatedAt);
+  const botsAt = newest(bots.lastCheck, ...(bots.data?.cloudServices.map((c) => c.checkedAt) ?? []));
+  const dbsAt = newest(dbs.lastCheck, ...(dbs.data?.databases.map((d) => d.checkedAt) ?? []));
+  const shownRefresh = view === 'archive' ? archiveAt : view === 'bots' ? botsAt : view === 'dbs' ? dbsAt : newest(archiveAt, botsAt, dbsAt);
+  const refreshLabel = (d: Date | null): string => {
+    if (!d) return 'not yet';
+    const sameDay = d.toDateString() === new Date().toDateString();
+    return sameDay ? d.toLocaleTimeString() : `${d.toLocaleDateString([], { day: '2-digit', month: 'short' })} ${d.toLocaleTimeString()}`;
+  };
 
   const needsIp = useMemo(() => findNeedsIp(results), [results]);
   const needsIpCount = needsIp.srd.length + needsIp.bot.length;
@@ -511,7 +524,7 @@ export default function App() {
                 <span className="page-sep">·</span>
                 last health check{' '}
                 <span className="mono" style={{ color: 'var(--text-2)', fontWeight: 700 }}>
-                  {shownRefresh ? shownRefresh.toLocaleTimeString() : 'not yet'}
+                  {refreshLabel(shownRefresh)}
                 </span>
                 {data?.egressIp && (
                   <>

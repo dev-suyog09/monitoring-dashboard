@@ -4,6 +4,17 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-21 · Last health check and metric numbers (branch `Dev-Suyog`)
+
+### Fixed
+- **"Last health check"** now shows when the data on screen was actually gathered (the newest of what the page fetched and
+  the times the backend stamped on the results), so it moves on every refresh and also shows for data that was checked
+  before the page was opened. The Customers tab uses the newest of archive, bots and databases; an older day shows its date.
+- Large metric numbers (such as `1125/1132`) no longer run under the progress ring beside them in narrow cards.
+
+### Added
+- Tests that the time changes after refreshing Cloud Instances, Databases and Customers.
+
 ## 2026-10-21 · Same story on every tab (branch `Dev-Suyog`)
 
 ### Fixed
