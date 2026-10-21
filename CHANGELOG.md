@@ -4,6 +4,12 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-21 · Notification panel wording
+
+### Fixed
+- The 🔔 panel's subtitle and empty-state text still said "Stopped or Unresponsive"; they now say an instance leaving
+  the Started state, matching the alert rule.
+
 ## 2026-10-21 · Alerts for every non-Started state
 
 ### Changed

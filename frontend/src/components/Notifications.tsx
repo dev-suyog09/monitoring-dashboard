@@ -39,7 +39,7 @@ function Entry({ i, index, onOpen }: { i: AlertItem; index: number; onOpen: () =
   );
 }
 
-/** 🔔 with an unread count; opens a sidebar listing instances that went Stopped / Unresponsive (and recoveries). */
+/** 🔔 with an unread count; opens a sidebar listing instances that left the Started state (and recoveries). */
 export function NotificationBell({
   items,
   unread,
@@ -86,7 +86,7 @@ export function NotificationBell({
       {open && (
         <SidePanel
           title="Notifications"
-          subtitle="Bot instances that went Stopped or Unresponsive"
+          subtitle="Bot instances that left the Started state"
           onClose={() => setOpen(false)}
           footer={
             <div className="flex flex-col gap-3">
@@ -122,7 +122,7 @@ export function NotificationBell({
               <div className="sheet-empty-ico">🔔</div>
               <p>You're all caught up.</p>
               <p className="sheet-empty-sub">
-                You'll be notified here when a bot instance goes <strong>Stopped</strong> or <strong>Unresponsive</strong> after a check.
+                You'll be notified here when a bot instance leaves the <strong>Started</strong> state (stopped, unresponsive, starting…) after a check.
               </p>
             </div>
           ) : (
