@@ -191,23 +191,8 @@ export default function BotsView({
         <BotCharts data={data} onPick={(k) => setF(k)} />
       </ChartsSection>
 
-      <div className="ov-grid">
-        <AttentionList items={attentionItems} total={attention.length} empty={stats.checked === 0 ? 'Run a check to see which bots need attention.' : '✓ Every checked instance is started.'} />
-        <Panel title="Instance health" right={<span className="panel-legend">{instances.length} instances</span>}>
-          <Donut
-            center={upCount}
-            centerLabel={`of ${instances.length} up`}
-            empty="No instances checked yet — use Check all bots."
-            segments={[
-              { label: 'Started', value: upCount, color: 'var(--ok)', onClick: () => setF('started') },
-              { label: 'Starting / other', value: stats.starting, color: 'var(--warn)', onClick: () => setF('warn') },
-              { label: 'Stopped / unresponsive', value: stats.down, color: 'var(--err)', onClick: () => setF('down') },
-              { label: 'Bots not checked', value: unchecked, color: 'var(--idle)' },
-            ]}
-          />
-        </Panel>
-      </div>
-
+      <div className="cust-layout">
+        <div className="cust-main">
       {f !== 'all' && (
         <div className="banner banner-warm flex items-center justify-between gap-3">
           <span>
@@ -267,6 +252,26 @@ export default function BotsView({
 
       <BotGroups data={data} checking={checking} onCheck={onCheck} statusFilter={statusFilter} onlyChecked={f === 'checked'} />
       {loading && <p className="text-xs" style={{ color: 'var(--text-3)' }}>Loading…</p>}
+        </div>
+        <aside className="cust-side">
+          <div className="side-scroll">
+        <AttentionList items={attentionItems} total={attention.length} empty={stats.checked === 0 ? 'Run a check to see which bots need attention.' : '✓ Every checked instance is started.'} />
+        <Panel title="Instance health" right={<span className="panel-legend">{instances.length} instances</span>}>
+          <Donut
+            center={upCount}
+            centerLabel={`of ${instances.length} up`}
+            empty="No instances checked yet — use Check all bots."
+            segments={[
+              { label: 'Started', value: upCount, color: 'var(--ok)', onClick: () => setF('started') },
+              { label: 'Starting / other', value: stats.starting, color: 'var(--warn)', onClick: () => setF('warn') },
+              { label: 'Stopped / unresponsive', value: stats.down, color: 'var(--err)', onClick: () => setF('down') },
+              { label: 'Bots not checked', value: unchecked, color: 'var(--idle)' },
+            ]}
+          />
+        </Panel>
+          </div>
+        </aside>
+      </div>
     </>
   );
 }

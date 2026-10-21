@@ -21,10 +21,10 @@ export default function AttentionList({ items, empty, total }: { items: Attentio
       {items.length === 0 ? (
         <p className="panel-empty">{empty}</p>
       ) : (
-        <ul className="att-list">
+        <ul className="att-list att-compact">
           {items.map((a) => (
             <li key={a.key}>
-              <button type="button" className="att-item" onClick={a.onClick}>
+              <button type="button" className="att-item" onClick={a.onClick} title={`${a.title} · ${a.sub}`}>
                 <span className="cust-av">{a.badge}</span>
                 <span className="att-text">
                   <b>{a.title}</b>

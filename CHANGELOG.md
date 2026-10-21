@@ -4,6 +4,17 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-21 · Side column on Cloud Instances and Databases (branch `Dev-Suyog`)
+
+### Changed
+- **Cloud Instances** and **Databases** now match Customers: the table / bot groups sit in the wide left column, and
+  **Needs attention** plus **Instance health** / **Storage health** sit in a sticky, scrolling side column on the right
+  (below about 1180px wide it drops under the table). Attention rows are one slim line each, with long names cut by an
+  ellipsis and shown in full on hover; the mouse wheel still scrolls the page over the column.
+
+### Added
+- Tests for the side-by-side layout, the side column content, wheel scrolling and the filters on both tabs.
+
 ## 2026-10-21 · Last health check and metric numbers (branch `Dev-Suyog`)
 
 ### Fixed

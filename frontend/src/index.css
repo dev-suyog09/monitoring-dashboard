@@ -1580,3 +1580,9 @@ input:focus-visible { outline-offset: 1px; }
 .metric-main { flex: 1; min-width: 0; }
 .metric-val { font-size: clamp(21px, 2.1vw, 30px); white-space: nowrap; }
 .mring { margin-left: auto; }
+
+/* side column on Cloud Instances and Databases (same as Customers): long names are cut with … and shown in full on hover */
+.cust-side .att-compact .att-text { flex: 1 1 0; min-width: 0; }
+.cust-side .att-compact .att-text b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cust-side .att-compact .att-pills { flex: 0 1 auto; max-width: 64%; }
+.cust-side .att-compact .att-item { align-items: center; }

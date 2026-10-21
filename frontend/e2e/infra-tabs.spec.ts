@@ -17,7 +17,7 @@ test.describe('Cloud Instances tab', () => {
     });
     expect(order).toBe(true);
     await expect(page.locator('.att-item').first()).toBeVisible();
-    await expect(page.locator('.ov-grid .donut-wrap')).toHaveCount(1);
+    await expect(page.locator('.cust-side .donut-wrap')).toHaveCount(1);
     expect(errors).toEqual([]);
   });
 
@@ -33,7 +33,7 @@ test.describe('Cloud Instances tab', () => {
     await page.locator('.att-item').first().click();
     await expect(banner(page)).toContainText('Showing only');
     await clearFilter(page);
-    await page.locator('.ov-grid .donut-legend li', { hasText: 'Started' }).click();
+    await page.locator('.cust-side .donut-legend li', { hasText: 'Started' }).click();
     await expect(banner(page)).toContainText(/started/i);
     await clearFilter(page);
     await expect(page.locator('.banner-warm', { hasText: 'Showing only' })).toHaveCount(0);
@@ -69,7 +69,7 @@ test.describe('Databases tab', () => {
     await goTab(page, 'Data');
     await expect(page.locator('.mstrip .metric')).toHaveCount(6);
     await expect(page.locator('.att-item').first()).toBeVisible();
-    await expect(page.locator('.ov-grid .donut-wrap')).toHaveCount(1);
+    await expect(page.locator('.cust-side .donut-wrap')).toHaveCount(1);
     expect(await page.locator('.dtable tbody tr').count()).toBeGreaterThan(50);
     expect(errors).toEqual([]);
   });
@@ -104,7 +104,7 @@ test.describe('Databases tab', () => {
     await start(page);
     await goTab(page, 'Data');
     const total = await page.locator('.dtable tbody tr').count();
-    await page.locator('.ov-grid .donut-legend li', { hasText: 'Critical' }).click();
+    await page.locator('.cust-side .donut-legend li', { hasText: 'Critical' }).click();
     await expect.poll(() => page.locator('.dtable tbody tr').count()).toBeLessThan(total);
     await page.getByRole('button', { name: /Clear filter/ }).click();
     await page.locator('.insights').click();
@@ -118,6 +118,43 @@ test.describe('Databases tab', () => {
     await goTab(page, 'Data');
     await expect(page.locator('.dtable tbody button', { hasText: /heck/ }).first()).toBeVisible();
   });
+});
+
+test.describe('Cloud Instances and Databases: table on the left, Needs attention + health in a scrolling side column (as on Customers)', () => {
+  for (const [tabName, healthTitle, mainSelector] of [
+    ['Cloud', 'Instance health', '.panel, .dtable'],
+    ['Data', 'Storage health', '.dtable'],
+  ] as const) {
+    test(`${tabName}: layout, side column content and wheel scrolling`, async ({ page }) => {
+      await start(page);
+      await goTab(page, tabName);
+      const main = page.locator('.cust-main');
+      const side = page.locator('.cust-side');
+      await expect(main).toBeVisible();
+      await expect(side).toBeVisible();
+      await expect(main.locator(mainSelector).first()).toBeVisible();
+      await expect(side.locator('.att-item').first()).toBeVisible();
+      await expect(side.locator('.panel-hd h3', { hasText: healthTitle })).toHaveCount(1);
+      await expect(side.locator('.donut-wrap')).toHaveCount(1);
+      // side by side: the main column is to the left of the side column, and the side column is the narrow one
+      const m = (await main.boundingBox())!;
+      const s = (await side.boundingBox())!;
+      expect(s.x).toBeGreaterThan(m.x + m.width - 2);
+      expect(s.width).toBeLessThan(m.width);
+      // the page still scrolls when the pointer is over the side column
+      await page.mouse.move(s.x + 40, s.y + 60);
+      await page.mouse.wheel(0, 500);
+      await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
+    });
+
+    test(`${tabName}: an attention item still applies its filter from the side column`, async ({ page }) => {
+      await start(page);
+      await goTab(page, tabName);
+      await page.locator('.cust-side .att-item').first().click();
+      if (tabName === 'Cloud') await expect(page.locator('.banner-warm').first()).toContainText('Showing only');
+      else await expect.poll(() => page.locator('.dtable tbody tr').count()).toBeLessThan(15);
+    });
+  }
 });
 
 test.describe('Archive tab', () => {

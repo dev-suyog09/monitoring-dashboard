@@ -298,23 +298,8 @@ export default function DatabasesView({
         <DbCharts data={data} onPick={(k) => setFilter(k)} />
       </ChartsSection>
 
-      <div className="ov-grid">
-        <AttentionList items={attentionItems} total={attentionTotal} empty={none ? 'Run a check to see which databases need attention.' : '✓ Every checked database looks healthy.'} />
-        <Panel title="Storage health" right={<span className="panel-legend">{databases.length} databases</span>}>
-          <Donut
-            center={counts.checked - counts.critical - counts.watch}
-            centerLabel={`of ${counts.checked} within limits`}
-            empty="No databases checked yet — use Check all databases."
-            segments={[
-              { label: `OK (≤ ${warn}%)`, value: databases.filter((d) => isChecked(d) && d.usedPct !== null && levelOf(d.usedPct, warn, crit) === 'ok').length, color: 'var(--ok)', onClick: () => setFilter('ok') },
-              { label: `Watch (${warn}–${crit}%)`, value: counts.watch, color: 'var(--warn)', onClick: () => setFilter('watch') },
-              { label: `Critical (> ${crit}%)`, value: counts.critical, color: 'var(--err)', onClick: () => setFilter('critical') },
-              { label: 'N/A or not checked', value: databases.length - counts.critical - counts.watch - databases.filter((d) => isChecked(d) && d.usedPct !== null && levelOf(d.usedPct, warn, crit) === 'ok').length, color: 'var(--idle)', onClick: () => setFilter('unchecked') },
-            ]}
-          />
-        </Panel>
-      </div>
-
+      <div className="cust-layout">
+        <div className="cust-main">
       <div className="flex flex-wrap items-center gap-2">
         {(
           [
@@ -442,6 +427,26 @@ export default function DatabasesView({
           </div>
         )}
       </Panel>
+        </div>
+        <aside className="cust-side">
+          <div className="side-scroll">
+        <AttentionList items={attentionItems} total={attentionTotal} empty={none ? 'Run a check to see which databases need attention.' : '✓ Every checked database looks healthy.'} />
+        <Panel title="Storage health" right={<span className="panel-legend">{databases.length} databases</span>}>
+          <Donut
+            center={counts.checked - counts.critical - counts.watch}
+            centerLabel={`of ${counts.checked} within limits`}
+            empty="No databases checked yet — use Check all databases."
+            segments={[
+              { label: `OK (≤ ${warn}%)`, value: databases.filter((d) => isChecked(d) && d.usedPct !== null && levelOf(d.usedPct, warn, crit) === 'ok').length, color: 'var(--ok)', onClick: () => setFilter('ok') },
+              { label: `Watch (${warn}–${crit}%)`, value: counts.watch, color: 'var(--warn)', onClick: () => setFilter('watch') },
+              { label: `Critical (> ${crit}%)`, value: counts.critical, color: 'var(--err)', onClick: () => setFilter('critical') },
+              { label: 'N/A or not checked', value: databases.length - counts.critical - counts.watch - databases.filter((d) => isChecked(d) && d.usedPct !== null && levelOf(d.usedPct, warn, crit) === 'ok').length, color: 'var(--idle)', onClick: () => setFilter('unchecked') },
+            ]}
+          />
+        </Panel>
+          </div>
+        </aside>
+      </div>
     </>
   );
 }
