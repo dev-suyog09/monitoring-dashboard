@@ -16,6 +16,8 @@ export interface AlertItem {
 }
 
 interface Stored {
+  /** False on the very first visit (nothing saved yet): the first state seen is then a silent baseline. */
+  stored?: boolean;
   items: AlertItem[];
   /** Instances currently known to be red (key -> status), so a reload or re-check doesn't re-alert them. */
   red: Record<string, string>;
@@ -32,11 +34,11 @@ export const instKey = (i: { subscriptionId: string; cloudService: string; insta
 export function loadAlerts(): Stored {
   try {
     const raw = localStorage.getItem(STORE_KEY);
-    if (!raw) return { items: [], red: {} };
+    if (!raw) return { stored: false, items: [], red: {} };
     const p = JSON.parse(raw) as Partial<Stored>;
-    return { items: Array.isArray(p.items) ? p.items.slice(0, MAX_ITEMS) : [], red: p.red && typeof p.red === 'object' ? p.red : {} };
+    return { stored: true, items: Array.isArray(p.items) ? p.items.slice(0, MAX_ITEMS) : [], red: p.red && typeof p.red === 'object' ? p.red : {} };
   } catch {
-    return { items: [], red: {} };
+    return { stored: false, items: [], red: {} };
   }
 }
 

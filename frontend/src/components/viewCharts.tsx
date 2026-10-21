@@ -16,7 +16,8 @@ const ACCENT = 'var(--accent)';
 export type CustPick =
   | 'arch-ok' | 'arch-warn' | 'arch-err' | 'arch-none'
   | 'bot-ok' | 'bot-warn' | 'bot-down' | 'bot-unchecked'
-  | 'db-ok' | 'db-issue' | 'db-unchecked';
+  | 'db-ok' | 'db-issue' | 'db-unchecked'
+  | 'health-ok' | 'health-warn' | 'health-err' | 'health-idle';
 
 export function CustomerCharts({ rows, onPick }: { rows: CustomerRow[]; onPick?: (k: CustPick) => void }) {
   const go = (k: CustPick) => (onPick ? () => onPick(k) : undefined);

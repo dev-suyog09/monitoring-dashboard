@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BotsResponse, CheckResponse, CheckResult, DatabasesResponse, Status } from './types';
-import { fetchCheck, fetchHealth, restartBackend, fetchBots, checkBots, fetchDatabases, checkDatabases } from './lib/api';
+import { fetchCheck, fetchHealth, restartBackend, fetchBots, checkBots, fetchDatabases, checkDatabases, fetchMe, firstName, type Me } from './lib/api';
 import { findNeedsIp } from './lib/needsIp';
 import { useOnDemand } from './lib/useOnDemand';
 import { isDownState } from './lib/instanceState';
@@ -10,7 +10,7 @@ import { useFullscreen } from './lib/useFullscreen';
 import { NotificationBell, Toasts } from './components/Notifications';
 import SidePanel from './components/SidePanel';
 import { detectEnv } from './lib/ui';
-import { useTheme } from './lib/theme';
+import { MODE_LABEL, useTheme } from './lib/theme';
 import { coverageSeries, isMonitorable } from './lib/history';
 import { loadGroups, saveGroups, type WatchGroup } from './lib/watchlist';
 import { Panel, StatPanel, CoverageChart, Gauge } from './components/panels';
@@ -19,6 +19,9 @@ import { matchesWatch, matchesFilter, envOf, customerOf, type EnvName } from './
 import AccountTable from './components/AccountTable';
 import DetailDrawer from './components/DetailDrawer';
 import CustomerDetail from './components/CustomerDetail';
+import SettingsPanel from './components/SettingsPanel';
+import { everyLabel, getSettings, useApplySettings, useSettings } from './lib/settings';
+import { smooth } from './lib/transition';
 import NeedsIpPanel from './components/NeedsIpPanel';
 import BotsView from './components/BotsView';
 import DatabasesView, { type DbScope } from './components/DatabasesView';
@@ -26,7 +29,6 @@ import CustomersView from './components/CustomersView';
 import { buildCustomerRows } from './lib/customers';
 import type { BotScope } from './components/BotGroups';
 
-const REFRESH_MS = 900_000; // 15 min
 const RESTART_WAIT_MS = 10 * 60_000;
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 type Filter = 'all' | Status | 'PRD' | 'UAT' | 'DEV';
@@ -34,6 +36,20 @@ type View = 'archive' | 'customers' | 'bots' | 'dbs';
 // Scope of the automatic 15-minute re-check on the Cloud Instances / Databases tabs: everything.
 const ALL_BOTS: BotScope = {};
 const ALL_DBS: DbScope = {};
+
+/** "Good morning" / "Good afternoon" / "Good evening" from the local time. */
+function greeting(): string {
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
+}
+
+const VIEW_TITLE: Record<View, string> = { customers: 'Customers', archive: 'Archive', bots: 'Cloud Instances', dbs: 'Databases' };
+const NAV: { view: View; label: string; short: string; icon: string }[] = [
+  { view: 'customers', label: 'Customers', short: 'Customers', icon: 'M17 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 5 18.5V20M11 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM19 20v-1.2a3 3 0 0 0-2.2-2.9M16 5.2a3.4 3.4 0 0 1 0 6.6' },
+  { view: 'archive', label: 'Archive', short: 'Archive', icon: 'M3.5 7.5h17v3h-17zM5 10.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8.5M10 14h4' },
+  { view: 'bots', label: 'Cloud Instances', short: 'Cloud', icon: 'M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9.5a4.25 4.25 0 0 1-.5 8.5Z' },
+  { view: 'dbs', label: 'Databases', short: 'Data', icon: 'M12 10c4.4 0 8-1.3 8-3s-3.6-3-8-3-8 1.3-8 3 3.6 3 8 3ZM4 7v5c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12v5c0 1.7 3.6 3 8 3s8-1.3 8-3v-5' },
+];
 
 export default function App() {
   const [data, setData] = useState<CheckResponse | null>(null);
@@ -49,18 +65,59 @@ export default function App() {
   const [draft, setDraft] = useState('');
   const [groups, setGroups] = useState<WatchGroup[]>(() => loadGroups());
   const [selected, setSelected] = useState<string | null>(null);
-  const [customerDetail, setCustomerDetail] = useState<string | null>(null); // account opened from the Customers tab
-  const { mode, toggleMode } = useTheme();
+  const [customerDetail, setCustomerDetail] = useState<{ key: string; account: string | null } | null>(null); // customer opened from the Customers tab
+  const { mode, next, setMode, toggleMode } = useTheme();
+  const settings = useSettings();
+  useApplySettings(settings);
+  const [showSettings, setShowSettings] = useState(false);
+  // switching tabs cross-fades and starts at the top of the new tab
+  const goTo = (v: View) => {
+    if (v === view) return;
+    smooth(() => {
+      setView(v);
+      window.scrollTo(0, 0);
+    });
+  };
+  const [sideOpen, setSideOpen] = useState(false);
+  const [peek, setPeek] = useState(false); // sidebar "on hover" mode: slid out
+  const peekTimer = useRef<number | undefined>(undefined);
+  const peekOn = () => {
+    window.clearTimeout(peekTimer.current);
+    setPeek(true);
+  };
+  const peekOff = () => {
+    window.clearTimeout(peekTimer.current);
+    peekTimer.current = window.setTimeout(() => setPeek(false), 320); // small delay: crossing a gap never closes it
+  };
+  const [backendStarted, setBackendStarted] = useState<string | null>(null);
+  useEffect(() => {
+    fetchHealth()
+      .then((h) => setBackendStarted(h.startedAt))
+      .catch(() => undefined);
+  }, []);
+  const [me, setMe] = useState<Me | null>(null);
+  useEffect(() => {
+    let stop = false;
+    const tryLoad = (n: number) =>
+      fetchMe()
+        .then((m) => (m.email || m.name ? !stop && setMe(m) : n < 5 && !stop && setTimeout(() => tryLoad(n + 1), 5000)))
+        .catch(() => n < 5 && !stop && setTimeout(() => tryLoad(n + 1), 5000));
+    tryLoad(0);
+    return () => {
+      stop = true;
+    };
+  }, []);
+  const who = firstName(me);
   const abortRef = useRef<AbortController | null>(null);
   const [restartMsg, setRestartMsg] = useState<string | null>(null);
   const [showNeeds, setShowNeeds] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
-  const [view, setView] = useState<View>('customers');
+  const [view, setView] = useState<View>(() => getSettings().defaultTab);
   // Environment filter shared by the Cloud Instances and Databases tabs.
   const [infraEnv, setInfraEnv] = useState<EnvName | 'all'>('all');
   // Bots + databases are on demand: nothing is fetched until their tab is opened / a check is run.
-  const bots = useOnDemand<BotsResponse, BotScope>(fetchBots, checkBots, ALL_BOTS);
-  const dbs = useOnDemand<DatabasesResponse, DbScope>(fetchDatabases, checkDatabases, ALL_DBS);
+  const bots = useOnDemand<BotsResponse, BotScope>(fetchBots, checkBots, ALL_BOTS, settings.autoMinutes * 60_000);
+  const dbs = useOnDemand<DatabasesResponse, DbScope>(fetchDatabases, checkDatabases, ALL_DBS, settings.autoMinutes * 60_000);
   const { reset: resetBots } = bots;
   // Bell + pop-ups: raised when a checked instance newly goes Stopped / Unresponsive.
   const alerts = useAlerts(bots.data);
@@ -139,12 +196,15 @@ export default function App() {
 
   useEffect(() => {
     load();
-    const id = setInterval(() => load(), REFRESH_MS);
-    return () => {
-      clearInterval(id);
-      abortRef.current?.abort();
-    };
+    return () => abortRef.current?.abort();
   }, [load]);
+
+  // the archive scan repeats on the same schedule as the bot / database re-checks (Settings → Auto re-check)
+  useEffect(() => {
+    if (settings.autoMinutes <= 0) return;
+    const id = setInterval(() => load(), settings.autoMinutes * 60_000);
+    return () => clearInterval(id);
+  }, [load, settings.autoMinutes]);
 
   // While the backend's first scan runs, poll quickly until data arrives.
   useEffect(() => {
@@ -163,6 +223,18 @@ export default function App() {
       window.removeEventListener('pointerdown', unlock);
       window.removeEventListener('keydown', unlock);
     };
+  }, []);
+
+  // Ctrl/Cmd + K jumps to the search box.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        document.querySelector<HTMLInputElement>('.wl input')?.focus();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   // On narrow screens the tab row scrolls sideways: keep the selected tab in view.
@@ -354,7 +426,7 @@ export default function App() {
     }
   }, [watched, filter, atRiskOnly, atRiskList]);
 
-  const customerDetailAccount: CheckResult | null = customerDetail ? (results.find((r) => r.accountName === customerDetail) ?? null) : null;
+  const customerDetailRow = customerDetail ? (customerRows.find((r) => r.key === customerDetail.key) ?? null) : null;
   const selectedAccount: CheckResult | null = selected
     ? (results.find((r) => r.accountName === selected) ?? null)
     : null;
@@ -368,110 +440,87 @@ export default function App() {
   ];
 
   return (
-    <div className="page">
+    <div className={`page ${settings.sidebar !== 'pinned' && (peek || sideOpen) ? 'page-shift' : ''}`}>
+      <div className={`side-zone ${peek ? 'zone-off' : ''}`} onMouseEnter={peekOn} onMouseLeave={peekOff} aria-hidden />
+      <aside
+        className={`side-nav ${sideOpen ? 'side-open' : ''} ${peek ? 'side-peek' : ''}`}
+        onMouseEnter={peekOn}
+        onMouseLeave={peekOff}
+        aria-label="Sections"
+      >
+        <span className="brand-mark side-logo" title="Godzilla Health Monitor · NTRX AppOps" aria-hidden>
+          <svg width="24" height="24" viewBox="0 0 64 64">
+            <path d="M6 38 L18 38 L24 22 L31 48 L38 14 L45 42 L50 38 L58 38" fill="none" stroke="#fff" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+        <nav className="side-items">
+          {NAV.map((n) => (
+            <button key={n.view} className={`side-item ${view === n.view ? 'side-on' : ''}`} onClick={() => { goTo(n.view); setSideOpen(false); setPeek(false); }} title={n.label} aria-label={n.label}>
+              <span className="side-ico">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d={n.icon} />
+                </svg>
+                {n.view === 'bots' && botIssues > 0 && <span className="tab-badge side-badge">{botIssues}</span>}
+                {n.view === 'dbs' && dbIssues > 0 && <span className="tab-badge side-badge">{dbIssues}</span>}
+              </span>
+              <span className="side-label">{n.short}</span>
+            </button>
+          ))}
+        </nav>
+        <button className="side-item side-gear" onClick={() => { setShowSettings(true); setSideOpen(false); setPeek(false); }} title="Settings" aria-label="Settings">
+          <span className="side-ico">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.11-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.7 1.7 0 0 0 .34-1.87 1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09a1.7 1.7 0 0 0 1.56-1.11 1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.01a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.01a1.7 1.7 0 0 0 1.56 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.56 1.03Z" />
+            </svg>
+          </span>
+          <span className="side-label">Settings</span>
+        </button>
+        <span className="side-live" title="NTRX AppOps · live">
+          <span className="dot pulse" style={{ background: 'var(--ok)', width: 8, height: 8 }} />
+          <span>live</span>
+        </span>
+      </aside>
+
       <div className="dash">
         {/* ── Header: brand left, date + last health check at the extreme right ── */}
         <header className="hdr">
           <div className="hdr-top">
-            <div className="brand">
-              <span className="brand-mark" aria-hidden>
-                <svg width="26" height="26" viewBox="0 0 64 64">
-                  <path
-                    d="M6 38 L18 38 L24 22 L31 48 L38 14 L45 42 L50 38 L58 38"
-                    fill="none"
-                    stroke="#fff"
-                    strokeWidth="6"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </svg>
-              </span>
-              <span className="brand-text">
-                <span className="brand-title">Godzilla Health Monitor</span>
-                <span className="brand-sub">
-                  <span className="dot pulse" style={{ background: 'var(--ok)', width: 7, height: 7 }} />
-                  NTRX AppOps · live
+            <button className="icirc hdr-burger" onClick={() => setSideOpen((o) => !o)} aria-label="Show or hide the menu" title="Show or hide the menu">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden>
+                <path d="M4 7h16M4 12h16M4 17h16" />
+              </svg>
+            </button>
+            <div className="page-title">
+              {settings.greeting && <span className="page-eyebrow">{VIEW_TITLE[view]}</span>}
+              <h1>
+                {settings.greeting ? (
+                  <>
+                    {greeting()}
+                    {who ? `, ${who}` : ''}! <span className="wave">👋</span>
+                  </>
+                ) : (
+                  VIEW_TITLE[view]
+                )}
+              </h1>
+              <p className="page-sub">
+                <span className="mono">
+                  {today ? new Date(`${today}T00:00:00`).toLocaleDateString([], { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '…'}
                 </span>
-              </span>
+                <span className="page-sep">·</span>
+                last health check{' '}
+                <span className="mono" style={{ color: 'var(--text-2)', fontWeight: 700 }}>
+                  {shownRefresh ? shownRefresh.toLocaleTimeString() : 'not yet'}
+                </span>
+                {data?.egressIp && (
+                  <>
+                    <span className="page-sep">·</span>src <span className="mono">{data.egressIp}</span>
+                  </>
+                )}
+              </p>
             </div>
 
             <div className="hdr-meta">
-              <div className="hdr-meta-text">
-                <span className="hdr-date mono">
-                  {today ? new Date(`${today}T00:00:00`).toLocaleDateString([], { weekday: 'short', day: '2-digit', month: 'short', year: 'numeric' }) : '…'}
-                </span>
-                <span className="hdr-sub">
-                  Last health check{' '}
-                  <span className="mono" style={{ color: 'var(--text-2)', fontWeight: 700 }}>
-                    {shownRefresh ? shownRefresh.toLocaleTimeString() : 'not yet'}
-                  </span>
-                  {data?.egressIp && (
-                    <>
-                      {' '}
-                      · src <span className="mono">{data.egressIp}</span>
-                    </>
-                  )}
-                </span>
-              </div>
-              <NotificationBell
-                items={alerts.items}
-                unread={alerts.unread}
-                onOpenItem={(item) => {
-                  alerts.markRead(item.id);
-                  setView('bots');
-                }}
-                onMarkAllRead={alerts.markAllRead}
-                onClear={alerts.clear}
-                desktop={alerts.desktop}
-                desktopSupported={alerts.desktopSupported}
-                onEnableDesktop={() => void alerts.enableDesktop()}
-                onDisableDesktop={alerts.disableDesktop}
-                sound={alerts.sound}
-                onToggleSound={alerts.toggleSound}
-                onPreviewSound={alerts.previewSound}
-              />
-              <button className="icirc" onClick={toggleMode} title="Toggle light / dark" aria-label="Toggle theme">
-                {mode === 'dark' ? '☀️' : '🌙'}
-              </button>
-              {fullscreen.supported && (
-                <span className="fs-wrap">
-                <button
-                  className="icirc"
-                  onClick={() => void fullscreen.toggle()}
-                  title={fullscreen.active ? 'Exit full screen (Esc)' : 'Full screen'}
-                  aria-label={fullscreen.active ? 'Exit full screen' : 'Enter full screen'}
-                >
-                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-                    {fullscreen.active ? (
-                      <path d="M6 1.5V6H1.5M10 14.5V10h4.5M10 1.5V6h4.5M6 14.5V10H1.5" />
-                    ) : (
-                      <path d="M1.5 6V1.5H6M14.5 6V1.5H10M1.5 10v4.5H6M14.5 10v4.5H10" />
-                    )}
-                  </svg>
-                </button>
-                {fullscreen.blocked && <span className="fs-hint">Your browser blocked full screen here — press F11</span>}
-                </span>
-              )}
-            </div>
-          </div>
-
-          <nav className="hdr-bar">
-            <div className="tabs">
-          <button className={`tab ${view === 'customers' ? 'tab-on' : ''}`} onClick={() => setView('customers')}>
-            Customers
-          </button>
-          <button className={`tab ${view === 'archive' ? 'tab-on' : ''}`} onClick={() => setView('archive')}>
-            Archive
-          </button>
-          <button className={`tab ${view === 'bots' ? 'tab-on' : ''}`} onClick={() => setView('bots')}>
-            Cloud Instances{botIssues > 0 && <span className="tab-badge">{botIssues}</span>}
-          </button>
-          <button className={`tab ${view === 'dbs' ? 'tab-on' : ''}`} onClick={() => setView('dbs')}>
-            Databases{dbIssues > 0 && <span className="tab-badge">{dbIssues}</span>}
-          </button>
-
-            </div>
-            <div className="hdr-actions">
+              <div className="hdr-actions">
             <button
               className={`pill ${needsIpCount > 0 ? 'pill-on' : ''}`}
               onClick={() => setShowNeeds(true)}
@@ -532,7 +581,61 @@ export default function App() {
                       : '⟳ Check everything'}
             </button>
             </div>
-          </nav>
+              <span className="hdr-icons">
+              <NotificationBell
+                items={alerts.items}
+                unread={alerts.unread}
+                onOpenItem={(item) => {
+                  alerts.markRead(item.id);
+                  goTo('bots');
+                }}
+                onMarkAllRead={alerts.markAllRead}
+                onClear={alerts.clear}
+                desktop={alerts.desktop}
+                desktopSupported={alerts.desktopSupported}
+                onEnableDesktop={() => void alerts.enableDesktop()}
+                onDisableDesktop={alerts.disableDesktop}
+                sound={alerts.sound}
+                onToggleSound={alerts.toggleSound}
+                onPreviewSound={alerts.previewSound}
+              />
+              <button className="icirc" onClick={toggleMode} title={`Theme: ${MODE_LABEL[mode]} — click for ${MODE_LABEL[next]} (more in Settings)`} aria-label="Switch theme">
+                🎨
+              </button>
+              <button className="icirc" onClick={() => setShowSettings(true)} title="Settings" aria-label="Settings">
+                ⚙️
+              </button>
+              {fullscreen.supported && (
+                <span className="fs-wrap">
+                <button
+                  className="icirc"
+                  onClick={() => void fullscreen.toggle()}
+                  title={fullscreen.active ? 'Exit full screen (Esc)' : 'Full screen'}
+                  aria-label={fullscreen.active ? 'Exit full screen' : 'Enter full screen'}
+                >
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                    {fullscreen.active ? (
+                      <path d="M6 1.5V6H1.5M10 14.5V10h4.5M10 1.5V6h4.5M6 14.5V10H1.5" />
+                    ) : (
+                      <path d="M1.5 6V1.5H6M14.5 6V1.5H10M1.5 10v4.5H6M14.5 10v4.5H10" />
+                    )}
+                  </svg>
+                </button>
+                {fullscreen.blocked && <span className="fs-hint">Your browser blocked full screen here — press F11</span>}
+                </span>
+              )}
+              </span>
+              {me && (
+                <span className="hdr-user" title={me.email ?? ''}>
+                  <span className="hdr-avatar">{(who ?? '?').charAt(0)}</span>
+                  <span className="hdr-user-text">
+                    <b>{who}</b>
+                    <small>{me.email}</small>
+                  </span>
+                </span>
+              )}
+            </div>
+          </div>
         </header>
 
         {restartMsg && (
@@ -587,7 +690,7 @@ export default function App() {
             dbsChecking={dbs.checking}
             onCheckBots={(id) => void bots.check(`sub:${id}`, { subscriptionId: id })}
             onCheckDbs={(id) => void dbs.check(`sub:${id}`, { subscriptionId: id })}
-            onSelectAccount={(a) => setCustomerDetail(a.accountName)}
+            onOpenCustomer={(r, account) => setCustomerDetail({ key: r.key, account: account ?? null })}
           />
         )}
 
@@ -740,7 +843,7 @@ export default function App() {
           </>
         )}
         <footer className="dash-foot">
-          Godzilla Health Monitor · NTRX AppOps · bots and databases re-check every 15 min while this page is open
+          Godzilla Health Monitor · NTRX AppOps · bots and databases re-check {everyLabel(settings.autoMinutes)} while this page is open
         </footer>
       </div>
 
@@ -778,21 +881,44 @@ export default function App() {
         </SidePanel>
       )}
 
-      <Toasts toasts={alerts.toasts} onClose={alerts.dismissToast} onOpen={() => setView('bots')} />
+      <Toasts toasts={alerts.toasts} onClose={alerts.dismissToast} onOpen={() => goTo('bots')} />
 
       {showNeeds && <NeedsIpPanel needs={needsIp} egressIp={data?.egressIp} onClose={() => setShowNeeds(false)} />}
 
-      {customerDetailAccount && (
+      {showSettings && (
+        <SettingsPanel
+          settings={settings}
+          mode={mode}
+          setMode={setMode}
+          alerts={{
+            sound: alerts.sound,
+            toggleSound: alerts.toggleSound,
+            previewSound: () => void alerts.previewSound(),
+            desktop: alerts.desktop,
+            desktopSupported: alerts.desktopSupported,
+            enableDesktop: () => void alerts.enableDesktop(),
+            disableDesktop: alerts.disableDesktop,
+            clear: alerts.clear,
+            count: alerts.items.length,
+          }}
+          account={{ name: who, email: me?.email ?? null, egressIp: data?.egressIp, backendStarted }}
+          onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {customerDetailRow && (
         <CustomerDetail
-          account={customerDetailAccount}
+          row={customerDetailRow}
+          accountName={customerDetail?.account ?? null}
+          onSwitch={(account) => setCustomerDetail({ key: customerDetailRow.key, account })}
           today={today}
           bots={bots.data}
           dbs={dbs.data}
-          botsBusy={bots.checking === `sub:${customerDetailAccount.subscriptionId}`}
-          dbsBusy={dbs.checking === `sub:${customerDetailAccount.subscriptionId}`}
+          botsBusy={bots.checking === `sub:${customerDetailRow.subscriptionId}`}
+          dbsBusy={dbs.checking === `sub:${customerDetailRow.subscriptionId}`}
           checkDisabled={{ bots: bots.checking !== null, dbs: dbs.checking !== null }}
-          onCheckBots={() => void bots.check(`sub:${customerDetailAccount.subscriptionId}`, { subscriptionId: customerDetailAccount.subscriptionId })}
-          onCheckDbs={() => void dbs.check(`sub:${customerDetailAccount.subscriptionId}`, { subscriptionId: customerDetailAccount.subscriptionId })}
+          onCheckBots={() => void bots.check(`sub:${customerDetailRow.subscriptionId}`, { subscriptionId: customerDetailRow.subscriptionId })}
+          onCheckDbs={() => void dbs.check(`sub:${customerDetailRow.subscriptionId}`, { subscriptionId: customerDetailRow.subscriptionId })}
           onClose={() => setCustomerDetail(null)}
         />
       )}

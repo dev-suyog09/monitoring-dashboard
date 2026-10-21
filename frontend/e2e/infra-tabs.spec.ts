@@ -1,0 +1,162 @@
+import { expect, test, type Page } from '@playwright/test';
+import { clearFilter, goTab, start, trackErrors } from './helpers';
+
+const metric = (page: Page, label: string | RegExp) => page.locator('.mstrip .metric', { hasText: label });
+const banner = (page: Page) => page.locator('.banner-warm').first();
+
+test.describe('Cloud Instances tab', () => {
+  test('layout: 5 metrics, insights bar under them, attention list and health donut', async ({ page }) => {
+    const errors = trackErrors(page);
+    await start(page);
+    await goTab(page, 'Cloud');
+    await expect(page.locator('.mstrip .metric')).toHaveCount(5);
+    const order = await page.evaluate(() => {
+      const strip = document.querySelector('.mstrip')!;
+      const bar = document.querySelector('.insights')!;
+      return !!(strip.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING);
+    });
+    expect(order).toBe(true);
+    await expect(page.locator('.att-item').first()).toBeVisible();
+    await expect(page.locator('.ov-grid .donut-wrap')).toHaveCount(1);
+    expect(errors).toEqual([]);
+  });
+
+  test('metric cards, attention items and the donut apply filters that can be cleared', async ({ page }) => {
+    await start(page);
+    await goTab(page, 'Cloud');
+    await metric(page, 'Stopped / unresponsive').click();
+    await expect(banner(page)).toContainText(/stopped/i);
+    await clearFilter(page);
+    await metric(page, 'Starting / other').click();
+    await expect(banner(page)).toContainText(/starting/i);
+    await clearFilter(page);
+    await page.locator('.att-item').first().click();
+    await expect(banner(page)).toContainText('Showing only');
+    await clearFilter(page);
+    await page.locator('.ov-grid .donut-legend li', { hasText: 'Started' }).click();
+    await expect(banner(page)).toContainText(/started/i);
+    await clearFilter(page);
+    await expect(page.locator('.banner-warm', { hasText: 'Showing only' })).toHaveCount(0);
+  });
+
+  test('charts: 3 cards, red slice filters to stopped, no card left alone with a blank gap', async ({ page }) => {
+    await start(page);
+    await goTab(page, 'Cloud');
+    await page.locator('.insights').click();
+    await expect(page.locator('.chart-grid > .panel')).toHaveCount(3);
+    // the last bar chart spans the full row
+    const last = await page.locator('.chart-grid > .panel').last().boundingBox();
+    const grid = await page.locator('.chart-grid').boundingBox();
+    expect(Math.abs(last!.width - grid!.width)).toBeLessThan(4);
+    await page.locator('.chart-grid .donut-legend li', { hasText: 'Stopped' }).click();
+    await expect(banner(page)).toContainText(/stopped/i);
+  });
+
+  test('env pills filter the metrics', async ({ page }) => {
+    await start(page);
+    await goTab(page, 'Cloud');
+    const before = await metric(page, 'Cloud services').innerText();
+    await page.getByRole('button', { name: /^UAT \d+/ }).click();
+    await expect.poll(() => metric(page, 'Cloud services').innerText()).not.toBe(before);
+    await page.getByRole('button', { name: /^UAT \d+/ }).click();
+  });
+});
+
+test.describe('Databases tab', () => {
+  test('layout: 6 metrics, insights bar under them, attention list and storage donut', async ({ page }) => {
+    const errors = trackErrors(page);
+    await start(page);
+    await goTab(page, 'Data');
+    await expect(page.locator('.mstrip .metric')).toHaveCount(6);
+    await expect(page.locator('.att-item').first()).toBeVisible();
+    await expect(page.locator('.ov-grid .donut-wrap')).toHaveCount(1);
+    expect(await page.locator('.dtable tbody tr').count()).toBeGreaterThan(50);
+    expect(errors).toEqual([]);
+  });
+
+  test('every metric card filters the table', async ({ page }) => {
+    await start(page);
+    await goTab(page, 'Data');
+    const total = await page.locator('.dtable tbody tr').count();
+    for (const label of [/storage/, /watch/, /DTU/, /LTR backup/]) {
+      const card = metric(page, label).first();
+      const value = (await card.locator('.metric-val').innerText()).trim();
+      if (value === '0' || value === '—') continue; // nothing in that bucket right now
+      await card.click();
+      await expect.poll(() => page.locator('.dtable tbody tr').count()).toBeLessThan(total);
+      await page.getByRole('button', { name: /Clear filter/ }).click();
+      await expect.poll(() => page.locator('.dtable tbody tr').count()).toBe(total);
+    }
+  });
+
+  test('attention item narrows to that one server, and the search box clears', async ({ page }) => {
+    await start(page);
+    await goTab(page, 'Data');
+    const total = await page.locator('.dtable tbody tr').count();
+    await page.locator('.att-item').first().click();
+    await expect.poll(() => page.locator('.dtable tbody tr').count()).toBeLessThan(15);
+    const search = page.getByPlaceholder(/Filter databases/i);
+    await search.fill('');
+    await expect.poll(() => page.locator('.dtable tbody tr').count()).toBe(total);
+  });
+
+  test('storage donut, chart bars and sorting', async ({ page }) => {
+    await start(page);
+    await goTab(page, 'Data');
+    const total = await page.locator('.dtable tbody tr').count();
+    await page.locator('.ov-grid .donut-legend li', { hasText: 'Critical' }).click();
+    await expect.poll(() => page.locator('.dtable tbody tr').count()).toBeLessThan(total);
+    await page.getByRole('button', { name: /Clear filter/ }).click();
+    await page.locator('.insights').click();
+    await expect(page.locator('.chart-grid > .panel')).toHaveCount(3);
+    await page.locator('.chart-grid .hbars li.clickable').first().click();
+    await expect.poll(() => page.locator('.dtable tbody tr').count()).toBeLessThan(total);
+  });
+
+  test('per-row Check button is present', async ({ page }) => {
+    await start(page);
+    await goTab(page, 'Data');
+    await expect(page.locator('.dtable tbody button', { hasText: /heck/ }).first()).toBeVisible();
+  });
+});
+
+test.describe('Archive tab', () => {
+  test('5 stat cards filter the accounts table and reset', async ({ page }) => {
+    const errors = trackErrors(page);
+    await start(page);
+    await goTab(page, 'Archive');
+    const cards = page.locator('.stat');
+    await expect(cards).toHaveCount(5);
+    const total = await page.locator('.dtable tbody tr').count();
+    expect(total).toBeGreaterThan(50);
+    for (const i of [1, 2, 3, 4]) {
+      await cards.nth(i).click();
+      await expect.poll(() => page.locator('.dtable tbody tr').count()).toBeLessThan(total);
+      await cards.nth(0).click();
+      await expect.poll(() => page.locator('.dtable tbody tr').count()).toBe(total);
+    }
+    expect(errors).toEqual([]);
+  });
+
+  test('coverage chart draws a smooth curve; health gauge and env pills work', async ({ page }) => {
+    await start(page);
+    await goTab(page, 'Archive');
+    await expect(page.locator('.cov-wrap path.cov-line')).toHaveCount(1);
+    const d = await page.locator('.cov-wrap path.cov-line').getAttribute('d');
+    expect(d).toMatch(/C/); // cubic Bézier segments, not straight lines
+    const total = await page.locator('.dtable tbody tr').count();
+    await page.getByRole('button', { name: /^UAT \d+/ }).click();
+    await expect.poll(() => page.locator('.dtable tbody tr').count()).toBeLessThan(total);
+  });
+
+  test('clicking an account opens the detail drawer; Esc closes it', async ({ page }) => {
+    await start(page);
+    await goTab(page, 'Archive');
+    await page.locator('.dtable tbody tr').first().click();
+    await expect(page.locator('.drawer')).toBeVisible();
+    // a reachable account lists its capture folders; an unreachable one explains why instead
+    await expect(page.locator('.drawer')).toContainText(/Capture folders|coverage|Timed out|allowlisted|unreachable|not found/i);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.drawer')).toHaveCount(0);
+  });
+});

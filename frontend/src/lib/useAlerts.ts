@@ -39,12 +39,21 @@ export function useAlerts(data: BotsResponse | null) {
   const [items, setItems] = useState<AlertItem[]>(initial.current.items);
   const [toasts, setToasts] = useState<Toast[]>([]);
   const redRef = useRef<Record<string, string>>(initial.current.red);
+  // first ever visit in this browser: whatever is already wrong is the baseline, not a flood of "new" alerts
+  const baselinePending = useRef(!initial.current.stored);
   const [sound, setSound] = useState(loadSoundPref);
   const [desktop, setDesktop] = useState(() => loadDesktopPref() && typeof Notification !== 'undefined' && Notification.permission === 'granted');
 
   useEffect(() => {
     // Nothing has been checked yet (inventory only) -> nothing to compare.
     if (!data || !data.cloudServices.some((s) => s.checkedAt)) return;
+    if (baselinePending.current) {
+      baselinePending.current = false;
+      const { red } = diffAlerts({}, data.instances, data.cloudServices, new Date().toISOString());
+      redRef.current = red;
+      saveAlerts({ items: [], red });
+      return;
+    }
     const { red, created } = diffAlerts(redRef.current, data.instances, data.cloudServices, new Date().toISOString());
     const changed = created.length > 0 || JSON.stringify(red) !== JSON.stringify(redRef.current);
     redRef.current = red;
@@ -143,7 +152,7 @@ export function useAlerts(data: BotsResponse | null) {
     clear,
     sound,
     toggleSound,
-    previewSound: playChime,
+    previewSound: () => playChime(),
     desktop,
     desktopSupported: typeof Notification !== 'undefined',
     enableDesktop,

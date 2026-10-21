@@ -25,7 +25,10 @@ export function useOnDemand<T, S>(
   const [error, setError] = useState<string | null>(null);
   const [lastCheck, setLastCheck] = useState<Date | null>(null);
   const [nextAuto, setNextAuto] = useState<Date | null>(null);
-  const [fullAt, setFullAt] = useState<number | null>(null); // time of the last full ("all") check
+  const [fullAt, setFullAt] = useState<number | null>(null); // time of the last check
+  // The schedule runs from the last check, or from when the page was opened / reset if nothing was ever checked,
+  // so the tab refreshes on its own without anyone having to press Check first.
+  const [anchor, setAnchor] = useState(() => Date.now());
   const loadedRef = useRef(false);
   const busyRef = useRef(false);
   const scheduledRef = useRef(false);
@@ -92,18 +95,18 @@ export function useOnDemand<T, S>(
   const checkRef = useRef(check);
   checkRef.current = check;
   useEffect(() => {
-    scheduledRef.current = fullAt !== null;
-    if (fullAt === null) {
+    scheduledRef.current = autoMs > 0;
+    if (autoMs <= 0) {
       setNextAuto(null);
       return;
     }
-    const due = fullAt + autoMs;
+    const due = (fullAt ?? anchor) + autoMs;
     setNextAuto(new Date(due));
     const t = setInterval(() => {
       if (Date.now() >= due && !busyRef.current) void checkRef.current('all', scopeRef.current);
-    }, 15_000);
+    }, Math.max(500, Math.min(15_000, autoMs / 4)));
     return () => clearInterval(t);
-  }, [fullAt, autoMs]);
+  }, [fullAt, anchor, autoMs]);
 
   /** Forget everything (e.g. after the backend restarted); the next `open()` lists again. */
   const reset = useCallback(() => {
@@ -111,7 +114,7 @@ export function useOnDemand<T, S>(
     setData(null);
     setLastCheck(null);
     setFullAt(null);
-    scheduledRef.current = false;
+    setAnchor(Date.now());
   }, []);
 
   return { data, loading, checking, error, lastCheck, nextAuto, open, check, reset };

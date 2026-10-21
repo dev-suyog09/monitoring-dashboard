@@ -169,6 +169,23 @@ cd ../frontend
 npm run typecheck
 ```
 
+### End-to-end UI tests
+
+63 browser tests drive the real dashboard (every tab, filters, search and groups, the details panel, charts, settings and
+themes, the sidebar modes, alerts with their tune, phone and tablet layouts). They run against the **running** backend,
+in the Edge or Chrome you already have installed (nothing to download):
+
+```powershell
+cd frontend
+npm run build         # the backend serves frontend/dist
+npm run e2e           # headless; E2E_BROWSER=chrome to use Chrome, E2E_URL=http://host:3001 for another address
+npm run e2e:headed    # watch the browser work
+npm run e2e:report    # open the HTML report (it also holds a screenshot of every theme on every tab)
+```
+
+Alert tests fake instance states through the browser, so nothing in Azure is touched and the Restart backend button is
+never really pressed.
+
 ## Layout
 
 ```

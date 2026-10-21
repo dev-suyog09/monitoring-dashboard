@@ -1,5 +1,6 @@
 import { useMemo } from 'react';
-import type { BotsResponse, CheckResult, DatabasesResponse, InfraDatabase } from '../types';
+import type { BotsResponse, DatabasesResponse, InfraDatabase } from '../types';
+import type { CustomerRow } from '../lib/customers';
 import { dbIssues } from '../lib/customers';
 import { instanceLevel, LEVEL_SCOPE } from '../lib/instanceState';
 import { detectEnv } from '../lib/ui';
@@ -10,6 +11,11 @@ import SidePanel from './SidePanel';
 
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString() : null);
 const shortInstance = (n: string) => n.split('.').pop() ?? n;
+/** "AZU-NVM-FMC-NCC-PRD-ATD" -> "ATD". */
+const shortName = (name: string): string => {
+  const t = name.replace(/^AZU-NVM-FMC-NCC-/, '');
+  return /^(?:PRD|PROD|UAT|DEV|TST|TEST)-(.+)$/i.exec(t)?.[1] ?? t;
+};
 
 function Section({ icon, title, right, children }: { icon: string; title: string; right?: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -97,7 +103,9 @@ function DbCard({ d, issues }: { d: InfraDatabase; issues: string[] }) {
  * subscription — archive coverage, bot storage, the bots with every instance, and the databases (DSM).
  */
 export default function CustomerDetail({
-  account,
+  row,
+  accountName,
+  onSwitch,
   today,
   bots,
   dbs,
@@ -108,7 +116,10 @@ export default function CustomerDetail({
   onCheckDbs,
   onClose,
 }: {
-  account: CheckResult;
+  row: CustomerRow;
+  /** The SRD account to show (the first one when null). */
+  accountName: string | null;
+  onSwitch: (accountName: string) => void;
   today: string;
   bots: BotsResponse | null;
   dbs: DatabasesResponse | null;
@@ -119,9 +130,11 @@ export default function CustomerDetail({
   onCheckDbs: () => void;
   onClose: () => void;
 }) {
-  const sub = (account.subscriptionId ?? '').toLowerCase();
-  const env = detectEnv(account.accountName);
-  const cov = account.capturesTotal > 0 ? Math.round((account.capturesWithToday / account.capturesTotal) * 100) : 0;
+  const account = row.accounts.find((a) => a.accountName === accountName) ?? row.accounts[0] ?? null;
+  const sub = row.subscriptionId.toLowerCase();
+  const env = detectEnv(account?.accountName ?? row.name);
+  const cov = account && account.capturesTotal > 0 ? Math.round((account.capturesWithToday / account.capturesTotal) * 100) : 0;
+  const accErr = account?.status === 'error';
 
   const services = useMemo(
     () => (bots?.cloudServices ?? []).filter((s) => s.subscriptionId.toLowerCase() === sub).sort((a, b) => a.name.localeCompare(b.name)),
@@ -141,24 +154,33 @@ export default function CustomerDetail({
   const dbIssueCount = issueMap.filter((x, i) => databases[i]!.checkedAt && x.length > 0).length;
 
   return (
-    <SidePanel title={account.accountName} subtitle={account.subscription ?? 'Customer details'} onClose={onClose} width="clamp(560px, 50vw, 1100px)">
+    <SidePanel title={shortName(row.name)} subtitle={account ? `${account.accountName} · ${row.name}` : row.name} onClose={onClose} width="clamp(560px, 50vw, 1100px)">
       <div className="cd-head">
-        <StatusBadge status={account.status} />
+        {account && <StatusBadge status={account.status} />}
         <EnvBadge env={env} />
+        {row.accounts.length > 1 && (
+          <span className="cd-accts">
+            {row.accounts.map((a) => (
+              <button key={a.accountName} type="button" className={`pill ${a.accountName === account?.accountName ? 'pill-on' : ''}`} onClick={() => onSwitch(a.accountName)} title={a.accountName}>
+                {a.accountName}
+              </button>
+            ))}
+          </span>
+        )}
       </div>
 
       <div className="cd-kpis">
         <Kpi
           label="Archive"
-          value={account.status === 'error' ? '—' : `${cov}%`}
-          sub={account.status === 'error' ? 'could not read' : `${account.capturesWithToday}/${account.capturesTotal} folders`}
-          scope={account.status === 'error' ? 'st-err' : cov === 100 ? 'st-ok' : 'st-warn'}
+          value={!account || accErr ? '—' : `${cov}%`}
+          sub={!account ? 'no SRD account' : accErr ? 'could not read' : `${account.capturesWithToday}/${account.capturesTotal} folders`}
+          scope={!account ? 'st-idle' : accErr ? 'st-err' : cov === 100 ? 'st-ok' : 'st-warn'}
         />
         <Kpi
           label="Bot storage"
-          value={!account.bot || account.bot.status === 'none' ? '—' : account.bot.status === 'clean' ? 'Clean' : account.bot.status === 'stuck' ? `${account.bot.stuckCount} stuck` : 'Error'}
-          sub={account.bot ? `last ${account.bot.windowDays} days` : 'no bot storage'}
-          scope={!account.bot || account.bot.status === 'none' ? 'st-idle' : account.bot.status === 'clean' ? 'st-ok' : account.bot.status === 'stuck' ? 'st-err' : 'st-warn'}
+          value={!account?.bot || account.bot.status === 'none' ? '—' : account.bot.status === 'clean' ? 'Clean' : account.bot.status === 'stuck' ? `${account.bot.stuckCount} stuck` : 'Error'}
+          sub={account?.bot ? `last ${account.bot.windowDays} days` : 'no bot storage'}
+          scope={!account?.bot || account.bot.status === 'none' ? 'st-idle' : account.bot.status === 'clean' ? 'st-ok' : account.bot.status === 'stuck' ? 'st-err' : 'st-warn'}
         />
         <Kpi
           label="Instances"
@@ -174,11 +196,10 @@ export default function CustomerDetail({
         />
       </div>
 
-      {account.bot && <BotStoragePanel bot={account.bot} />}
+      {account?.bot && <BotStoragePanel bot={account.bot} />}
 
-      {account.status === 'error' ? (
-        <div className="cd-err">{account.error}</div>
-      ) : (
+      {account && accErr && <div className="cd-err">{account.error}</div>}
+      {account && !accErr && (
         <Section
           icon="🗄️"
           title="Archive today"

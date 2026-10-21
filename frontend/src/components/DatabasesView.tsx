@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
 import type { DatabasesResponse, InfraDatabase } from '../types';
-import { Panel, StatPanel } from './panels';
-import { ChartsSection } from './charts';
+import { Panel } from './panels';
+import { everyLabel, useSettings } from '../lib/settings';
+import MetricStrip from './MetricStrip';
+import AttentionList, { type AttentionItem } from './AttentionList';
+import { ChartsSection, Donut } from './charts';
 import { DbCharts } from './viewCharts';
 
 export type DbScope = { server?: string; db?: string; subscriptionId?: string };
@@ -49,6 +52,7 @@ export default function DatabasesView({
   /** When the next automatic re-check of everything runs (null until a full check has been done). */
   autoNext: Date | null;
 }) {
+  const minutes = useSettings().autoMinutes;
   const crit = data?.storageThreshold ?? 75;
   const warn = data?.warnThreshold ?? 60;
   const dtuCrit = data?.dtuThreshold ?? 90;
@@ -74,6 +78,55 @@ export default function DatabasesView({
       unchecked: databases.length - checked.length,
     };
   }, [databases, warn, crit, dtuCrit]);
+
+  /** Checked databases with something wrong, worst first. */
+  const attentionItems: AttentionItem[] = useMemo(() => {
+    const scored = databases
+      .filter(isChecked)
+      .map((d) => {
+        const pills: { text: string; scope: string }[] = [];
+        let score = 0;
+        if (d.status !== 'Online') {
+          pills.push({ text: d.status, scope: 'st-err' });
+          score += 200;
+        }
+        if (d.usedPct !== null && d.usedPct > crit) {
+          pills.push({ text: `storage ${d.usedPct}%`, scope: 'st-err' });
+          score += 100 + d.usedPct;
+        } else if (d.usedPct !== null && d.usedPct > warn) {
+          pills.push({ text: `storage ${d.usedPct}%`, scope: 'st-warn' });
+          score += d.usedPct;
+        }
+        if (highDtu(d)) {
+          pills.push({ text: `DTU ${d.dtuPct}%`, scope: 'st-err' });
+          score += 90 + (d.dtuPct ?? 0);
+        }
+        if (hasNoBackup(d)) {
+          pills.push({ text: 'no backup', scope: 'st-warn' });
+          score += 20;
+        }
+        return { d, pills, score };
+      })
+      .filter((x) => x.pills.length > 0)
+      .sort((a, b) => b.score - a.score);
+    return scored.slice(0, 6).map(({ d, pills }) => ({
+      key: dbId(d),
+      title: d.name,
+      sub: `${d.server} · ${d.subscription}`,
+      badge: d.name.slice(0, 2).toUpperCase(),
+      pills,
+      onClick: () => {
+        setFilter('all');
+        setSearch(d.server); // a database name like "DSM" is shared by many; the server name is unique
+      },
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [databases, warn, crit, dtuCrit]);
+  const attentionTotal = useMemo(
+    () => databases.filter((d) => isChecked(d) && (d.status !== 'Online' || (d.usedPct ?? 0) > warn || highDtu(d) || hasNoBackup(d))).length,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [databases, warn, dtuCrit],
+  );
 
   const rows = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -146,7 +199,13 @@ export default function DatabasesView({
     );
   }
   if (!data) {
-    return <div className="banner banner-warm">⏳ Listing databases…</div>;
+    return (
+      <div className="skeleton-page" role="status" aria-label="Listing databases">
+        <div className="skeleton" style={{ height: 96 }} />
+        <div className="skeleton" style={{ height: 44 }} />
+        <div className="skeleton" style={{ height: 260 }} />
+      </div>
+    );
   }
 
   const headers: { key: DbSort; label: string }[] = [
@@ -172,53 +231,89 @@ export default function DatabasesView({
       {none && (
         <div className="banner banner-warm">
           Nothing has been checked yet. Use <strong>Check all databases</strong> at the top, or the <strong>Check</strong>{' '}
-          button on a single row — nothing is read from Azure until you ask. The list below is the inventory only. After
-          the first full check it re-checks everything automatically every 15 minutes.
+          button on a single row. The list below is the inventory only.{' '}
+          {minutes > 0 ? `It also re-checks everything automatically ${everyLabel(minutes, true)} while this page is open.` : 'Automatic re-checks are off (Settings).'}
         </div>
       )}
       {autoNext && (
         <p className="text-xs" style={{ color: 'var(--text-3)' }}>
-          ⟳ Auto re-check of all databases (storage, backup, DTU) every 15 min · next at{' '}
+          ⟳ Auto re-check of all databases (storage, backup, DTU) {everyLabel(minutes)} · next at{' '}
           <span className="mono">{autoNext.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         </p>
       )}
 
-      <div className="stat-row">
-        <StatPanel label="Databases" value={databases.length} active={filter === 'all'} onClick={() => setFilter('all')} />
-        <StatPanel label="Checked" value={`${counts.checked}/${databases.length}`} />
-        <StatPanel
-          label={`Above ${crit}% storage`}
-          value={none ? '—' : counts.critical}
-          scope={none ? 'st-idle' : counts.critical > 0 ? 'st-err' : 'st-ok'}
-          active={filter === 'critical'}
-          onClick={() => pick('critical')}
-        />
-        <StatPanel
-          label={`${warn}–${crit}% watch`}
-          value={none ? '—' : counts.watch}
-          scope={none ? 'st-idle' : counts.watch > 0 ? 'st-warn' : 'st-ok'}
-          active={filter === 'watch'}
-          onClick={() => pick('watch')}
-        />
-        <StatPanel
-          label={`DTU above ${dtuCrit}%`}
-          value={none ? '—' : counts.dtu}
-          scope={none ? 'st-idle' : counts.dtu > 0 ? 'st-err' : 'st-ok'}
-          active={filter === 'dtu'}
-          onClick={() => pick('dtu')}
-        />
-        <StatPanel
-          label="No LTR backup"
-          value={none ? '—' : counts.nobackup}
-          scope={none ? 'st-idle' : counts.nobackup > 0 ? 'st-warn' : 'st-ok'}
-          active={filter === 'nobackup'}
-          onClick={() => pick('nobackup')}
-        />
-      </div>
+      <MetricStrip
+        metrics={[
+          { key: 'all', label: 'Databases', value: databases.length, sub: `${counts.unchecked} not checked`, tone: 'neutral', active: filter === 'all', onClick: () => setFilter('all') },
+          {
+            key: 'checked',
+            label: 'Checked',
+            value: `${counts.checked}/${databases.length}`,
+            ring: databases.length ? (counts.checked / databases.length) * 100 : 0,
+            sub: none ? 'not checked yet' : counts.unchecked > 0 ? `${counts.unchecked} to go` : 'all checked',
+            tone: none ? 'idle' : counts.unchecked > 0 ? 'warn' : 'ok',
+            active: filter === 'unchecked',
+            onClick: () => pick('unchecked'),
+          },
+          {
+            key: 'critical',
+            label: `Above ${crit}% storage`,
+            value: none ? '—' : counts.critical,
+            sub: none ? 'not checked yet' : counts.critical > 0 ? '▼ needs action' : 'none',
+            tone: none ? 'idle' : counts.critical > 0 ? 'err' : 'ok',
+            active: filter === 'critical',
+            onClick: () => pick('critical'),
+          },
+          {
+            key: 'watch',
+            label: `${warn}–${crit}% watch`,
+            value: none ? '—' : counts.watch,
+            sub: none ? 'not checked yet' : counts.watch > 0 ? 'keep an eye on these' : 'none',
+            tone: none ? 'idle' : counts.watch > 0 ? 'warn' : 'ok',
+            active: filter === 'watch',
+            onClick: () => pick('watch'),
+          },
+          {
+            key: 'dtu',
+            label: `DTU above ${dtuCrit}%`,
+            value: none ? '—' : counts.dtu,
+            sub: none ? 'not checked yet' : counts.dtu > 0 ? '▼ running hot' : 'none',
+            tone: none ? 'idle' : counts.dtu > 0 ? 'err' : 'ok',
+            active: filter === 'dtu',
+            onClick: () => pick('dtu'),
+          },
+          {
+            key: 'nobackup',
+            label: 'No LTR backup',
+            value: none ? '—' : counts.nobackup,
+            sub: none ? 'not checked yet' : counts.nobackup > 0 ? 'check the policy' : 'none',
+            tone: none ? 'idle' : counts.nobackup > 0 ? 'warn' : 'ok',
+            active: filter === 'nobackup',
+            onClick: () => pick('nobackup'),
+          },
+        ]}
+      />
 
       <ChartsSection label="charts">
         <DbCharts data={data} onPick={(k) => setFilter(k)} />
       </ChartsSection>
+
+      <div className="ov-grid">
+        <AttentionList items={attentionItems} total={attentionTotal} empty={none ? 'Run a check to see which databases need attention.' : '✓ Every checked database looks healthy.'} />
+        <Panel title="Storage health" right={<span className="panel-legend">{databases.length} databases</span>}>
+          <Donut
+            center={counts.checked - counts.critical - counts.watch}
+            centerLabel={`of ${counts.checked} within limits`}
+            empty="No databases checked yet — use Check all databases."
+            segments={[
+              { label: `OK (≤ ${warn}%)`, value: databases.filter((d) => isChecked(d) && d.usedPct !== null && levelOf(d.usedPct, warn, crit) === 'ok').length, color: 'var(--ok)', onClick: () => setFilter('ok') },
+              { label: `Watch (${warn}–${crit}%)`, value: counts.watch, color: 'var(--warn)', onClick: () => setFilter('watch') },
+              { label: `Critical (> ${crit}%)`, value: counts.critical, color: 'var(--err)', onClick: () => setFilter('critical') },
+              { label: 'N/A or not checked', value: databases.length - counts.critical - counts.watch - databases.filter((d) => isChecked(d) && d.usedPct !== null && levelOf(d.usedPct, warn, crit) === 'ok').length, color: 'var(--idle)', onClick: () => setFilter('unchecked') },
+            ]}
+          />
+        </Panel>
+      </div>
 
       <div className="flex flex-wrap items-center gap-2">
         {(

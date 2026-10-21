@@ -1,8 +1,11 @@
 import { useMemo, useState } from 'react';
 import type { BotsResponse } from '../types';
-import { Panel, StatPanel } from './panels';
+import { Panel } from './panels';
+import { everyLabel, useSettings } from '../lib/settings';
+import MetricStrip from './MetricStrip';
+import AttentionList, { type AttentionItem } from './AttentionList';
 import BotGroups, { type BotScope } from './BotGroups';
-import { ChartsSection } from './charts';
+import { ChartsSection, Donut } from './charts';
 import { BotCharts } from './viewCharts';
 import { instanceLevel, isDownState, LEVEL_SCOPE } from '../lib/instanceState';
 
@@ -33,6 +36,7 @@ export default function BotsView({
   /** When the next automatic re-check of everything runs (null until a full check has been done). */
   autoNext: Date | null;
 }) {
+  const minutes = useSettings().autoMinutes;
   const services = data?.cloudServices ?? [];
   const instances = data?.instances ?? [];
 
@@ -65,6 +69,35 @@ export default function BotsView({
     () => stats.notStarted.filter((i) => (f === 'down' ? isDownState(i.status) : f === 'warn' ? !isDownState(i.status) : true)),
     [stats.notStarted, f],
   );
+  /** Bots with something not started, worst first. */
+  const attention = useMemo(() => {
+    const by = new Map<string, { name: string; sub: string; down: number; other: number; total: number }>();
+    for (const i of instances) {
+      const k = `${i.subscriptionId}|${i.cloudService}`;
+      const e = by.get(k) ?? { name: i.cloudService, sub: i.subscription, down: 0, other: 0, total: 0 };
+      e.total++;
+      if (isDownState(i.status)) e.down++;
+      else if (i.status !== 'Started') e.other++;
+      by.set(k, e);
+    }
+    return [...by.entries()]
+      .filter(([, e]) => e.down > 0 || e.other > 0)
+      .sort((a, b) => b[1].down * 100 + b[1].other - (a[1].down * 100 + a[1].other));
+  }, [instances]);
+  const attentionItems: AttentionItem[] = attention.slice(0, 6).map(([key, e]) => ({
+    key,
+    title: e.name,
+    sub: `${e.sub} · ${e.total} instance${e.total === 1 ? '' : 's'}`,
+    badge: e.name.slice(0, 2).toUpperCase(),
+    pills: [
+      ...(e.down > 0 ? [{ text: `${e.down} down`, scope: 'st-err' }] : []),
+      ...(e.other > 0 ? [{ text: `${e.other} starting / other`, scope: 'st-warn' }] : []),
+    ],
+    onClick: () => setF(e.down > 0 ? 'down' : 'warn'),
+  }));
+  const upCount = instances.length - stats.notStarted.length;
+  const unchecked = services.length - stats.checked;
+
   const FILTER_TEXT: Record<CardFilter, string> = {
     all: '',
     checked: 'bots that have been checked',
@@ -81,7 +114,13 @@ export default function BotsView({
     );
   }
   if (!data) {
-    return <div className="banner banner-warm">⏳ Listing cloud services…</div>;
+    return (
+      <div className="skeleton-page" role="status" aria-label="Listing cloud services">
+        <div className="skeleton" style={{ height: 96 }} />
+        <div className="skeleton" style={{ height: 44 }} />
+        <div className="skeleton" style={{ height: 260 }} />
+      </div>
+    );
   }
 
   return (
@@ -94,41 +133,79 @@ export default function BotsView({
       {stats.checked === 0 && (
         <div className="banner banner-warm">
           Nothing has been checked yet. Use <strong>Check all bots</strong> at the top, or open a customer below and check
-          just that one — nothing is read from Azure until you ask. After the first full check it re-checks everything
-          automatically every 15 minutes.
+          just that one. {minutes > 0 ? `It also re-checks everything automatically ${everyLabel(minutes, true)} while this page is open.` : 'Automatic re-checks are off (Settings).'}
         </div>
       )}
       {autoNext && (
         <p className="text-xs" style={{ color: 'var(--text-3)' }}>
-          ⟳ Auto re-check of all bots every 15 min · next at{' '}
+          ⟳ Auto re-check of all bots {everyLabel(minutes)} · next at{' '}
           <span className="mono">{autoNext.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
         </p>
       )}
 
-      <div className="stat-row">
-        <StatPanel label="Cloud services" value={services.length} active={f === 'all'} onClick={() => setF('all')} />
-        <StatPanel label="Checked" value={`${stats.checked}/${services.length}`} active={f === 'checked'} onClick={() => pick('checked')} />
-        <StatPanel
-          label="Instances started"
-          value={stats.checked === 0 ? '—' : `${instances.length - stats.notStarted.length}/${instances.length}`}
-          scope={stats.checked === 0 ? 'st-idle' : stats.notStarted.length === 0 ? 'st-ok' : stats.down > 0 ? 'st-err' : 'st-warn'}
-          active={f === 'started'}
-          onClick={() => pick('started')}
-        />
-        <StatPanel
-          label="Stopped / unresponsive"
-          value={stats.checked === 0 ? '—' : stats.down}
-          scope={stats.checked === 0 ? 'st-idle' : stats.down > 0 ? 'st-err' : 'st-ok'}
-          active={f === 'down'}
-          onClick={() => pick('down')}
-        />
-        <StatPanel
-          label="Starting / other"
-          value={stats.checked === 0 ? '—' : stats.starting}
-          scope={stats.checked === 0 ? 'st-idle' : stats.starting > 0 ? 'st-warn' : 'st-ok'}
-          active={f === 'warn'}
-          onClick={() => pick('warn')}
-        />
+      <MetricStrip
+        metrics={[
+          { key: 'all', label: 'Cloud services', value: services.length, sub: `${instances.length} instances listed`, tone: 'neutral', active: f === 'all', onClick: () => setF('all') },
+          {
+            key: 'checked',
+            label: 'Checked',
+            value: `${stats.checked}/${services.length}`,
+            ring: services.length ? (stats.checked / services.length) * 100 : 0,
+            sub: unchecked > 0 ? `${unchecked} not checked yet` : 'all checked',
+            tone: stats.checked === 0 ? 'idle' : unchecked > 0 ? 'warn' : 'ok',
+            active: f === 'checked',
+            onClick: () => pick('checked'),
+          },
+          {
+            key: 'started',
+            label: 'Instances started',
+            value: stats.checked === 0 ? '—' : `${upCount}/${instances.length}`,
+            ring: instances.length ? (upCount / instances.length) * 100 : 0,
+            sub: stats.checked === 0 ? 'not checked yet' : stats.notStarted.length === 0 ? '▲ all started' : `▼ ${stats.notStarted.length} not started`,
+            tone: stats.checked === 0 ? 'idle' : stats.notStarted.length === 0 ? 'ok' : stats.down > 0 ? 'err' : 'warn',
+            active: f === 'started',
+            onClick: () => pick('started'),
+          },
+          {
+            key: 'down',
+            label: 'Stopped / unresponsive',
+            value: stats.checked === 0 ? '—' : stats.down,
+            sub: stats.checked === 0 ? 'not checked yet' : stats.down > 0 ? 'needs action' : 'none',
+            tone: stats.checked === 0 ? 'idle' : stats.down > 0 ? 'err' : 'ok',
+            active: f === 'down',
+            onClick: () => pick('down'),
+          },
+          {
+            key: 'warn',
+            label: 'Starting / other',
+            value: stats.checked === 0 ? '—' : stats.starting,
+            sub: stats.checked === 0 ? 'not checked yet' : stats.starting > 0 ? 'keep an eye on these' : 'none',
+            tone: stats.checked === 0 ? 'idle' : stats.starting > 0 ? 'warn' : 'ok',
+            active: f === 'warn',
+            onClick: () => pick('warn'),
+          },
+        ]}
+      />
+
+      <ChartsSection label="charts">
+        <BotCharts data={data} onPick={(k) => setF(k)} />
+      </ChartsSection>
+
+      <div className="ov-grid">
+        <AttentionList items={attentionItems} total={attention.length} empty={stats.checked === 0 ? 'Run a check to see which bots need attention.' : '✓ Every checked instance is started.'} />
+        <Panel title="Instance health" right={<span className="panel-legend">{instances.length} instances</span>}>
+          <Donut
+            center={upCount}
+            centerLabel={`of ${instances.length} up`}
+            empty="No instances checked yet — use Check all bots."
+            segments={[
+              { label: 'Started', value: upCount, color: 'var(--ok)', onClick: () => setF('started') },
+              { label: 'Starting / other', value: stats.starting, color: 'var(--warn)', onClick: () => setF('warn') },
+              { label: 'Stopped / unresponsive', value: stats.down, color: 'var(--err)', onClick: () => setF('down') },
+              { label: 'Bots not checked', value: unchecked, color: 'var(--idle)' },
+            ]}
+          />
+        </Panel>
       </div>
 
       {f !== 'all' && (
@@ -141,10 +218,6 @@ export default function BotsView({
           </button>
         </div>
       )}
-
-      <ChartsSection label="charts">
-        <BotCharts data={data} onPick={(k) => setF(k)} />
-      </ChartsSection>
 
       {stats.checked > 0 && f !== 'started' && (
         <Panel

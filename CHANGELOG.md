@@ -4,6 +4,37 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-21 · New look, settings and end-to-end tests (branch `Dev-Suyog`)
+
+### Added
+- **New layout:** floating icon sidebar, a "Good morning, <name>!" header with a profile chip (the name comes from the
+  signed-in Azure identity via the new `/api/me`), and card-based pages.
+- **Settings panel** (⚙️): six themes (AMOLED, Calm, Aurora, Emerald, Light, Sunset), accent colour, density, reduce
+  motion, greeting, sidebar mode (always show / on hover / hide, pushing the page instead of covering it), default tab,
+  auto re-check interval, open charts automatically, alert sound, desktop notifications, keyboard shortcuts and account info.
+- **Alert tunes:** nine synthesised tunes with a volume slider, previewed on selection.
+- **Metrics strip, Needs attention list and health donut** on Customers, Cloud Instances and Databases; on Customers the
+  attention list and Overall health sit in a scrolling side column beside the table.
+- **Visual insights bar** (the whole bar is the button) opening full-width, sideways charts; slices, legend rows and bars
+  filter the tab, and Overall health slices open the matching customers.
+- **Customer details panel:** double-click a customer (or "open details", or an attention item) for archive, bot storage,
+  bots with every instance and databases, with per-customer Check buttons and a switch between SRD accounts.
+- **End-to-end UI tests** (`frontend/e2e`, Playwright using the installed Edge/Chrome): `npm run e2e`.
+
+### Changed
+- Alerts now cover every state other than Started (red for Stopped/Unresponsive, amber for the rest); a fresh browser
+  treats what is already wrong as a quiet baseline instead of raising a flood of alerts.
+- Tab and theme changes cross-fade (View Transitions); controls share one easing and give press and focus feedback;
+  loading shows shimmer placeholders.
+- Coverage chart and sparklines are smooth curves; chart text is larger and ring labels stay inside the ring.
+
+### Fixed
+- **Auto re-check** of bots and databases starts by itself and follows the interval chosen in Settings (it used to wait for
+  a first manual check and stop for good after a failed run); the on-screen wording follows the interval.
+- Settings (tune, theme) changed in one open tab now apply in other tabs.
+- A closed sidebar no longer leaves a shadow on the screen edge or flashes on page load; the side column no longer traps the
+  mouse wheel; a database attention item opens one server instead of every database with the same name.
+
 ## 2026-10-21 · Customer details side panel (branch `Dev-Suyog`)
 
 ### Added

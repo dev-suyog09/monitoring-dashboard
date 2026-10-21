@@ -1,4 +1,5 @@
-import { useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
+import { getSettings, useSettings } from '../lib/settings';
 import { useCountUp } from '../lib/useCountUp';
 
 /* Small animated chart pieces shared by the on-demand "charts" sections of the Customers, Cloud Instances and
@@ -11,6 +12,9 @@ export interface Segment {
   /** Click handler: applies the matching filter on the tab. */
   onClick?: () => void;
 }
+
+/** Keeps the label inside the ring. */
+const fit = (t: string, max = 17): string => (t.length > max ? `${t.slice(0, max - 1)}…` : t);
 
 function CenterNum({ n }: { n: number }) {
   return <>{Math.round(useCountUp(n, 900))}</>;
@@ -76,11 +80,11 @@ export function Donut({
             <title>{`${a.label}: ${a.value}${a.onClick ? ' · click to filter' : ''}`}</title>
           </circle>
         ))}
-        <text x={70} y={68} textAnchor="middle" fontSize={26} fontWeight={800} fill="var(--text-1)" className="mono">
+        <text x={70} y={72} textAnchor="middle" fontSize={32} fontWeight={800} fill="var(--text-1)" className="mono">
           {h ? h.value : <CenterNum n={center} />}
         </text>
-        <text x={70} y={86} textAnchor="middle" fontSize={9} fill="var(--text-3)">
-          {h ? h.label : centerLabel}
+        <text x={70} y={91} textAnchor="middle" fontSize={(h ? h.label : centerLabel).length > 12 ? 10 : 11.5} fontWeight={600} fill="var(--text-2)">
+          {fit(h ? h.label : centerLabel)}
         </text>
       </svg>
       <ul className="donut-legend">
@@ -187,18 +191,49 @@ export function StackBars({ rows, empty }: { rows: StackRow[]; empty: string }) 
   );
 }
 
-/** The "📊 Show charts" button; the children (chart cards) are only mounted — and animate in — once it is opened. */
+/**
+ * The "Visual insights" bar at the top of a tab: one clear call to action. The chart cards (children) are only
+ * mounted — and animate in — once it is opened, so closed tabs stay light. "Open charts automatically" in Settings
+ * opens it on load.
+ */
 export function ChartsSection({ children, label = 'charts' }: { children: ReactNode; label?: string }) {
-  const [open, setOpen] = useState(false);
+  const auto = useSettings().autoCharts;
+  const [open, setOpen] = useState(() => getSettings().autoCharts);
+  useEffect(() => {
+    if (auto) setOpen(true);
+  }, [auto]);
   return (
     <>
-      <div className="charts-bar">
-        <button type="button" className={`pill ${open ? 'pill-on' : ''}`} onClick={() => setOpen((o) => !o)}>
-          📊 {open ? 'Hide' : 'Show'} {label}
-        </button>
-        {!open && <span className="charts-hint">On demand — nothing is drawn until you ask.</span>}
+      <div
+        className={`insights ${open ? 'insights-open' : ''}`}
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            setOpen((o) => !o);
+          }
+        }}
+      >
+        <span className="ins-ico" aria-hidden>
+          <i />
+          <i />
+          <i />
+        </span>
+        <span className="ins-text">
+          <b>Visual insights</b>
+          <span>{open ? 'Live charts for the filters you have applied' : 'Charts are drawn only when you ask, which keeps the dashboard fast'}</span>
+        </span>
+        <span className="ins-btn">
+          {open ? 'Hide' : 'Show'} {label}
+          <span className="ins-chev" aria-hidden>
+            ▾
+          </span>
+        </span>
       </div>
-      {open && <div className="chart-grid">{children}</div>}
+      {open && <div className="chart-grid charts-full">{children}</div>}
     </>
   );
 }

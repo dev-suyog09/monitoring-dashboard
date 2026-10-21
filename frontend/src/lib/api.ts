@@ -9,6 +9,22 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return (await res.json()) as T;
 }
 
+export interface Me {
+  email: string | null;
+  name: string | null;
+}
+
+export function fetchMe(signal?: AbortSignal): Promise<Me> {
+  return getJson<Me>('/api/me', signal);
+}
+
+/** "suyog.kulkarni@nice.com" -> "Suyog" (the token's given name wins when there is one). */
+export function firstName(me: Me | null): string | null {
+  if (!me) return null;
+  const raw = me.name?.trim() || me.email?.split('@')[0]?.split(/[._\-+]/)[0] || '';
+  return raw ? raw.charAt(0).toUpperCase() + raw.slice(1).toLowerCase() : null;
+}
+
 export interface Health {
   status: string;
   ready: boolean;

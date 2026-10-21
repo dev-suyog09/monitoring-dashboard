@@ -30,6 +30,25 @@ export function Panel({
 }
 
 /** Tiny inline area+line sparkline. */
+/** Smooth path through the points (Catmull-Rom converted to cubic Béziers, clamped so it never overshoots). */
+export function smoothPath(pts: Array<[number, number]>): string {
+  if (pts.length === 0) return '';
+  if (pts.length === 1) return `M${pts[0]![0]},${pts[0]![1]}`;
+  let d = `M${pts[0]![0].toFixed(1)},${pts[0]![1].toFixed(1)}`;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i]!;
+    const p1 = pts[i]!;
+    const p2 = pts[i + 1]!;
+    const p3 = pts[i + 2] ?? p2;
+    const lo = Math.min(p1[1], p2[1]);
+    const hi = Math.max(p1[1], p2[1]);
+    const c1y = Math.min(hi, Math.max(lo, p1[1] + (p2[1] - p0[1]) / 6));
+    const c2y = Math.min(hi, Math.max(lo, p2[1] - (p3[1] - p1[1]) / 6));
+    d += ` C${(p1[0] + (p2[0] - p0[0]) / 6).toFixed(1)},${c1y.toFixed(1)} ${(p2[0] - (p3[0] - p1[0]) / 6).toFixed(1)},${c2y.toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}`;
+  }
+  return d;
+}
+
 export function Sparkline({
   values,
   color = 'var(--accent)',
@@ -51,10 +70,11 @@ export function Sparkline({
     const y = height - 2 - ((v - min) / range) * (height - 4);
     return `${x.toFixed(1)},${y.toFixed(1)}`;
   });
+  const xy = pts.map((p) => p.split(',').map(Number) as [number, number]);
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} preserveAspectRatio="none" aria-hidden>
-      <polygon points={`0,${height} ${pts.join(' ')} ${width},${height}`} fill={color} opacity={0.14} />
-      <polyline points={pts.join(' ')} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" pathLength={1} className="draw" />
+      <path d={`${smoothPath(xy)} L${width},${height} L0,${height} Z`} fill={color} opacity={0.14} />
+      <path d={smoothPath(xy)} fill="none" stroke={color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" pathLength={1} className="draw" />
     </svg>
   );
 }
@@ -63,7 +83,7 @@ export function Sparkline({
 function CountNum({ n }: { n: number }) {
   return <>{Math.round(useCountUp(n))}</>;
 }
-function AnimatedValue({ value }: { value: number | string }) {
+export function AnimatedValue({ value }: { value: number | string }) {
   if (typeof value === 'number') return <CountNum n={value} />;
   const m = /^(\d+)\/(\d+)$/.exec(value);
   if (m) {
@@ -136,8 +156,9 @@ export function CoverageChart({ series, monitorable }: { series: DayPoint[]; mon
   const x = (i: number) => padL + (series.length > 1 ? (i / (series.length - 1)) * plotW : plotW / 2);
   const y = (v: number) => padT + (1 - v / maxY) * plotH;
 
-  const line = series.map((d, i) => `${x(i).toFixed(1)},${y(d.covered).toFixed(1)}`).join(' ');
-  const area = `${padL},${(padT + plotH).toFixed(1)} ${line} ${(padL + plotW).toFixed(1)},${(padT + plotH).toFixed(1)}`;
+  const xy = series.map((d, i): [number, number] => [x(i), y(d.covered)]);
+  const line = smoothPath(xy);
+  const area = `${line} L${(padL + plotW).toFixed(1)},${(padT + plotH).toFixed(1)} L${padL},${(padT + plotH).toFixed(1)} Z`;
   const gridVals = [0, Math.round(maxY / 2), maxY];
   const sig = `${monitorable}|${series.map((d) => d.covered).join(',')}`; // replay the animation when this changes
 
@@ -159,10 +180,9 @@ export function CoverageChart({ series, monitorable }: { series: DayPoint[]; mon
         key={sig}
         viewBox={`0 0 ${W} ${H}`}
         width="100%"
-        height="auto"
         role="img"
         aria-label="Daily archive coverage, last 7 days"
-        style={{ display: 'block' }}
+        style={{ display: 'block', height: 'auto' }}
         onMouseMove={onMove}
         onMouseLeave={() => setHover(null)}
       >
@@ -202,10 +222,10 @@ export function CoverageChart({ series, monitorable }: { series: DayPoint[]; mon
         />
 
         <g clipPath={`url(#${uid}-clip)`}>
-          <polygon points={area} fill={`url(#${uid}-fill)`} />
+          <path d={area} fill={`url(#${uid}-fill)`} />
         </g>
-        <polyline
-          points={line}
+        <path
+          d={line}
           fill="none"
           stroke={`url(#${uid}-stroke)`}
           strokeWidth={2.75}

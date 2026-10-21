@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 import cors from 'cors';
 import { loadConfig } from './config.js';
-import { buildAccountClients } from './azure.js';
+import { buildAccountClients, mgmtCredential } from './azure.js';
 import { checkAccount, todayStr, setEgressIp, friendlyError } from './checker.js';
 import { listLatestFiles } from './files.js';
 import { InfraStore } from './infra.js';
@@ -109,6 +109,25 @@ const app = express();
 app.use(cors());
 
 const STARTED_AT = new Date().toISOString();
+
+// Who the backend is signed in as (the `az login` identity), read from the token's claims; nothing is sent anywhere.
+let me: { email: string | null; name: string | null } | null = null;
+app.get('/api/me', async (_req, res) => {
+  if (!me) {
+    try {
+      const t = await mgmtCredential().getToken('https://management.azure.com/.default');
+      if (!t) throw new Error('no token');
+      const claims = JSON.parse(Buffer.from(t.token.split('.')[1] ?? '', 'base64url').toString('utf8')) as Record<string, string>;
+      me = {
+        email: claims.upn ?? claims.preferred_username ?? claims.unique_name ?? claims.email ?? null,
+        name: claims.given_name ?? null,
+      };
+    } catch {
+      return res.json({ email: null, name: null }); // not cached: try again next time
+    }
+  }
+  res.json(me);
+});
 
 app.get('/api/health', (_req, res) => {
   res.json({

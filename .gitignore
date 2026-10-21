@@ -15,3 +15,7 @@ dist/
 Claude outputs/
 .DS_Store
 Thumbs.db
+
+# end-to-end test output
+test-results/
+playwright-report/
