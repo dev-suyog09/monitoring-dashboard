@@ -18,6 +18,7 @@ import WatchlistSearch, { type CustomerSuggestion } from './components/Watchlist
 import { matchesWatch, matchesFilter, envOf, customerOf, type EnvName } from './lib/watchMatch';
 import AccountTable from './components/AccountTable';
 import DetailDrawer from './components/DetailDrawer';
+import CustomerDetail from './components/CustomerDetail';
 import NeedsIpPanel from './components/NeedsIpPanel';
 import BotsView from './components/BotsView';
 import DatabasesView, { type DbScope } from './components/DatabasesView';
@@ -48,6 +49,7 @@ export default function App() {
   const [draft, setDraft] = useState('');
   const [groups, setGroups] = useState<WatchGroup[]>(() => loadGroups());
   const [selected, setSelected] = useState<string | null>(null);
+  const [customerDetail, setCustomerDetail] = useState<string | null>(null); // account opened from the Customers tab
   const { mode, toggleMode } = useTheme();
   const abortRef = useRef<AbortController | null>(null);
   const [restartMsg, setRestartMsg] = useState<string | null>(null);
@@ -352,6 +354,7 @@ export default function App() {
     }
   }, [watched, filter, atRiskOnly, atRiskList]);
 
+  const customerDetailAccount: CheckResult | null = customerDetail ? (results.find((r) => r.accountName === customerDetail) ?? null) : null;
   const selectedAccount: CheckResult | null = selected
     ? (results.find((r) => r.accountName === selected) ?? null)
     : null;
@@ -584,7 +587,7 @@ export default function App() {
             dbsChecking={dbs.checking}
             onCheckBots={(id) => void bots.check(`sub:${id}`, { subscriptionId: id })}
             onCheckDbs={(id) => void dbs.check(`sub:${id}`, { subscriptionId: id })}
-            onSelectAccount={(a) => setSelected(a.accountName)}
+            onSelectAccount={(a) => setCustomerDetail(a.accountName)}
           />
         )}
 
@@ -778,6 +781,21 @@ export default function App() {
       <Toasts toasts={alerts.toasts} onClose={alerts.dismissToast} onOpen={() => setView('bots')} />
 
       {showNeeds && <NeedsIpPanel needs={needsIp} egressIp={data?.egressIp} onClose={() => setShowNeeds(false)} />}
+
+      {customerDetailAccount && (
+        <CustomerDetail
+          account={customerDetailAccount}
+          today={today}
+          bots={bots.data}
+          dbs={dbs.data}
+          botsBusy={bots.checking === `sub:${customerDetailAccount.subscriptionId}`}
+          dbsBusy={dbs.checking === `sub:${customerDetailAccount.subscriptionId}`}
+          checkDisabled={{ bots: bots.checking !== null, dbs: dbs.checking !== null }}
+          onCheckBots={() => void bots.check(`sub:${customerDetailAccount.subscriptionId}`, { subscriptionId: customerDetailAccount.subscriptionId })}
+          onCheckDbs={() => void dbs.check(`sub:${customerDetailAccount.subscriptionId}`, { subscriptionId: customerDetailAccount.subscriptionId })}
+          onClose={() => setCustomerDetail(null)}
+        />
+      )}
 
       {selectedAccount && (
         <DetailDrawer account={selectedAccount} today={today} egressIp={data?.egressIp} onClose={() => setSelected(null)} />

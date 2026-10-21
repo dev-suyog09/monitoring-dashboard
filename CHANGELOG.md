@@ -4,6 +4,14 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-21 · Customer details side panel (branch `Dev-Suyog`)
+
+### Added
+- **Customers → open details** now opens a wide side panel (half the screen width) with a summary strip (archive %,
+  bot storage, instances up, databases ok), the bot-storage status, the archive capture folders with latest files,
+  and the customer's **Bots** (every instance, coloured by state) and **Databases (DSM)** (status, storage bar,
+  DTU, latest backup, tier, issues), each with its own Check / Re-check button.
+
 ## 2026-10-21 · Notification panel wording
 
 ### Fixed

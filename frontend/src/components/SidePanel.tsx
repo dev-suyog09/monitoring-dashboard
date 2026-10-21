@@ -19,7 +19,7 @@ export default function SidePanel({
   onClose: () => void;
   children: ReactNode;
   footer?: ReactNode;
-  width?: number;
+  width?: number | string;
 }) {
   const [closing, setClosing] = useState(false);
 
@@ -40,7 +40,7 @@ export default function SidePanel({
       <div className={`drawer-backdrop ${closing ? 'backdrop-out' : ''}`} onClick={close} />
       <aside
         className={`drawer sheet ${closing ? 'drawer-out' : ''}`}
-        style={{ width: `min(${width}px, 100%)` }}
+        style={{ width: `min(${typeof width === 'number' ? `${width}px` : width}, 100%)` }}
         role="dialog"
         aria-label={title}
       >
