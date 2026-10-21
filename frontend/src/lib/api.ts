@@ -48,8 +48,18 @@ export async function restartBackend(): Promise<void> {
   }
 }
 
+/** The page's first data requests are started by /boot.js before the bundle has even loaded; each answer is used once. */
+function takeEarly<T>(key: 'check' | 'bots' | 'databases'): Promise<T> | null {
+  const w = window as unknown as { __early?: Partial<Record<string, Promise<T>>> };
+  const p = w.__early?.[key] ?? null;
+  if (w.__early) delete w.__early[key];
+  return p;
+}
+
 export function fetchCheck(signal?: AbortSignal, fresh = false): Promise<CheckResponse> {
-  return getJson<CheckResponse>(`/api/check${fresh ? '?fresh=1' : ''}`, signal);
+  const url = `/api/check${fresh ? '?fresh=1' : ''}`;
+  const early = fresh ? null : takeEarly<CheckResponse>('check');
+  return early ? early.catch(() => getJson<CheckResponse>(url, signal)) : getJson<CheckResponse>(url, signal);
 }
 
 /** Latest chat / media files inside archive/{capture}/{date}/ for one account. */
@@ -82,13 +92,19 @@ const qs = (params: Record<string, string | undefined>) => {
 };
 
 /** Cloud service inventory + whatever has been checked so far (cheap). */
-export const fetchBots = (signal?: AbortSignal) => getJson<BotsResponse>('/api/bots', signal);
+export const fetchBots = (signal?: AbortSignal) => {
+  const early = takeEarly<BotsResponse>('bots');
+  return early ? early.catch(() => getJson<BotsResponse>('/api/bots', signal)) : getJson<BotsResponse>('/api/bots', signal);
+};
 /** Live-check bots: no scope = all; customer(+env) = one customer; service = one bot. */
 export const checkBots = (scope: { customer?: string; env?: string; service?: string; subscriptionId?: string } = {}) =>
   postJson<BotsResponse>(`/api/bots/check${qs(scope)}`);
 
 /** SQL database inventory + whatever has been checked so far (cheap). */
-export const fetchDatabases = (signal?: AbortSignal) => getJson<DatabasesResponse>('/api/databases', signal);
+export const fetchDatabases = (signal?: AbortSignal) => {
+  const early = takeEarly<DatabasesResponse>('databases');
+  return early ? early.catch(() => getJson<DatabasesResponse>('/api/databases', signal)) : getJson<DatabasesResponse>('/api/databases', signal);
+};
 /** Live-check databases: no scope = all; server = one server; server+db = one database. */
 export const checkDatabases = (scope: { server?: string; db?: string; subscriptionId?: string } = {}) =>
   postJson<DatabasesResponse>(`/api/databases/check${qs(scope)}`);

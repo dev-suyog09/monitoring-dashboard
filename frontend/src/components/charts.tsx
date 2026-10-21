@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { Suspense, useEffect, useState, type ReactNode } from 'react';
 import { getSettings, useSettings } from '../lib/settings';
 import { useCountUp } from '../lib/useCountUp';
 
@@ -233,7 +233,11 @@ export function ChartsSection({ children, label = 'charts' }: { children: ReactN
           </span>
         </span>
       </div>
-      {open && <div className="chart-grid charts-full">{children}</div>}
+      {open && (
+        <div className="chart-grid charts-full">
+          <Suspense fallback={<div className="skeleton" style={{ height: 220, gridColumn: '1 / -1' }} />}>{children}</Suspense>
+        </div>
+      )}
     </>
   );
 }

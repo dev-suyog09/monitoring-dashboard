@@ -5,7 +5,9 @@ import { everyLabel, useSettings } from '../lib/settings';
 import MetricStrip from './MetricStrip';
 import AttentionList, { type AttentionItem } from './AttentionList';
 import { ChartsSection, Donut } from './charts';
-import { DbCharts } from './viewCharts';
+import { lazyPreload } from '../lib/lazy';
+
+const DbCharts = lazyPreload(() => import('./viewCharts').then((m) => ({ default: m.DbCharts })));
 
 export type DbScope = { server?: string; db?: string; subscriptionId?: string };
 

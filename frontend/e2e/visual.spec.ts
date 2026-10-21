@@ -5,7 +5,7 @@ import { goTab, start } from './helpers';
  * Not assertions: screenshots of every theme on every tab, attached to the HTML report (`npm run e2e:report`) so a human
  * can flip through them quickly after a UI change.
  */
-const THEMES = ['dark', 'calm', 'aurora', 'emerald', 'light', 'sunset'];
+const THEMES = ['dark', 'calm', 'aurora', 'emerald', 'light', 'sunset', 'macos', 'macosdark', 'macosamoled', 'macosglass', 'macosglassdark', 'macosglassamoled'];
 const TABS = ['Customers', 'Archive', 'Cloud', 'Data'] as const;
 
 for (const theme of THEMES) {

@@ -38,6 +38,12 @@ Re-check any time with `npm test` (backend) and `npm run e2e` (frontend, include
 - To share the dashboard deliberately, set `HOST=0.0.0.0` **and** `ALLOWED_HOSTS=your-host-name`, and put it behind
   something that authenticates people (a reverse proxy with SSO, a VPN). The tool itself has no login.
 
+## Local cache
+
+To show data straight after a restart, the backend keeps its last results in `backend/.cache` (git-ignored): the archive
+snapshot and the last bot / database check results. It holds the same operational data the API already serves (account and
+instance names, states, counts) and never a key, token or connection string. Delete the folder to clear it.
+
 ## Residual risks and recommendations
 
 - Anyone who can use your logged-in browser or sit at your machine can use the dashboard: it is as trusted as your

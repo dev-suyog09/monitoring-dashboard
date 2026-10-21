@@ -106,7 +106,7 @@ async function checkBotAccount(target: BotTarget, o: BotOptions): Promise<BotAcc
     const container = target.getContainer();
     const blobs: BotBlob[] = [];
     let truncated = false;
-    outer: for await (const page of container.listBlobsFlat({ abortSignal: signal }).byPage({ maxPageSize: 5000 })) {
+    outer: for await (const page of container.listBlobsFlat({ abortSignal: signal }).byPage({ maxPageSize: 1000 })) {
       for (const b of page.segment.blobItems) {
         blobs.push({
           name: b.name,

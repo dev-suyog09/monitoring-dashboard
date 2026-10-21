@@ -44,6 +44,7 @@ export async function goTab(page: Page, name: 'Customers' | 'Archive' | 'Cloud' 
   await tab(page, name).click();
   const eyebrow = { Customers: /Customers/i, Archive: /Archive/i, Cloud: /Cloud Instances/i, Data: /Databases/i }[name];
   await expect(page.locator('.page-eyebrow')).toHaveText(eyebrow);
+  await expect(page.locator('.skeleton-page')).toHaveCount(0); // tabs are loaded on demand: wait for the real content
 }
 
 /** Rows of the customers table that are customers (not the expanded SRD sub-rows). */

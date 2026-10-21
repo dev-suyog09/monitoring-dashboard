@@ -19,3 +19,6 @@ Thumbs.db
 # end-to-end test output
 test-results/
 playwright-report/
+
+# last-results cache written by the backend
+backend/.cache/

@@ -4,6 +4,38 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-21 · macOS themes and a wallpaper fix
+
+### Added
+- **Five macOS-inspired themes:** *macOS* (light), *macOS Dark* (graphite), *macOS AMOLED* (true black), *macOS Glass* (frosted
+  glass on a bright wallpaper), *macOS Glass Dark* and *macOS Glass AMOLED* (glass over faint colour glows on true black): Apple
+  system colours, window traffic lights on the sidebar, frosted sidebar and panels, rounded-rectangle controls and the system
+  font stack. There are now 12 themes (Settings → Appearance, or the 🎨 button).
+
+### Fixed
+- **Theme wallpapers covered only the first screen:** the page background sat on an element exactly one viewport tall, so a
+  fixed gradient stopped there and a plain colour showed while scrolling (Glass, Calm, Aurora, Emerald, Sunset, macOS). It now
+  covers the whole page; `wallpaper.spec.ts` guards it.
+
+## 2026-10-21 · Performance (branch `Dev-Suyog`)
+
+### Changed
+- **Page load:** responses are compressed (about 1.1 MB became about 235 KB on a first load); built files are cached for a year
+  and the page itself is revalidated. Other tabs, panels and charts are separate chunks loaded in idle time, the page's data
+  requests start before the app code finishes loading, the unused 300 font weight is gone, and only the first screenful of
+  table rows animates. First paint went from about 4.2 s to about 0.3 s.
+- **Instant data after a restart:** the last archive snapshot and bot / database results are kept in `backend/.cache` and served
+  at once while the real scan refreshes in the background (previously 1-4 minutes of "warming up"). Restored results are
+  refreshed soon if they are older than the Settings interval.
+- **Faster checks:** bot check 61 s to about 20 s (one call per cloud service instead of one per instance); database storage
+  and DTU are read side by side; the archive scan is split in two phases so the archive numbers publish in about 20 s while the
+  slow bot-storage listing (~70 s) finishes in the background and merges in.
+- **Server responsiveness:** `localhost` no longer waits about 2 s per connection for the IPv6 attempt to fail (listens on
+  127.0.0.1 and ::1); bot-storage listing runs 4 accounts at a time so the server keeps answering during a scan.
+
+### Added
+- `perf.spec.ts` (page weight, compression, first paint, caching, tab switches, row animation) and `cache.test.ts`.
+
 ## 2026-10-21 · Security hardening (branch `Dev-Suyog`)
 
 The older version of the dashboard is kept on the `Legacy-Monitoring-Version` branch (the state of `main` before this release).

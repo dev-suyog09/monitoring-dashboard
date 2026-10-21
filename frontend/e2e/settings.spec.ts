@@ -12,7 +12,7 @@ test.describe('Settings', () => {
     await closePanel(page);
   });
 
-  test('all six themes apply and the quick button cycles through them', async ({ page }) => {
+  test('all twelve themes apply and the quick button cycles through them', async ({ page }) => {
     await start(page);
     await openSettings(page);
     const expected: Record<string, [string, string | null]> = {
@@ -22,21 +22,27 @@ test.describe('Settings', () => {
       Emerald: ['dark', 'emerald'],
       Light: ['light', null],
       Sunset: ['light', 'sunset'],
+      macOS: ['light', 'macos'],
+      'macOS Dark': ['dark', 'macosdark'],
+      'macOS AMOLED': ['dark', 'macosamoled'],
+      'macOS Glass': ['light', 'macosglass'],
+      'macOS Glass Dark': ['dark', 'macosglassdark'],
+      'macOS Glass AMOLED': ['dark', 'macosglassamoled'],
     };
     for (const [name, [theme, palette]] of Object.entries(expected)) {
-      await page.locator('.theme-card', { hasText: name }).click();
+      await page.locator('.theme-card').filter({ has: page.locator('.theme-name', { hasText: new RegExp(`^${name}$`) }) }).click();
       await expect(html(page)).toHaveAttribute('data-theme', theme);
       if (palette) await expect(html(page)).toHaveAttribute('data-palette', palette);
       else await expect(html(page)).not.toHaveAttribute('data-palette', /.+/);
     }
     await closePanel(page);
     const seen = new Set<string>();
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < 12; i++) {
       seen.add((await html(page).getAttribute('data-theme')) + '/' + ((await html(page).getAttribute('data-palette')) ?? '-'));
       await page.getByRole('button', { name: /Switch theme/ }).click();
       await page.waitForTimeout(450); // let the cross-fade finish
     }
-    expect(seen.size).toBe(6);
+    expect(seen.size).toBe(12);
   });
 
   test('theme survives a reload', async ({ page }) => {

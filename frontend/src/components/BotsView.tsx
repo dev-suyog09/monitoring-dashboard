@@ -6,7 +6,9 @@ import MetricStrip from './MetricStrip';
 import AttentionList, { type AttentionItem } from './AttentionList';
 import BotGroups, { type BotScope } from './BotGroups';
 import { ChartsSection, Donut } from './charts';
-import { BotCharts } from './viewCharts';
+import { lazyPreload } from '../lib/lazy';
+
+const BotCharts = lazyPreload(() => import('./viewCharts').then((m) => ({ default: m.BotCharts })));
 import { instanceLevel, isDownState, LEVEL_SCOPE } from '../lib/instanceState';
 
 function StateChip({ status }: { status: string }) {

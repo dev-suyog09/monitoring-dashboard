@@ -10,6 +10,7 @@ import { ResourceGraphClient } from '@azure/arm-resourcegraph';
 import type { AppConfig } from './config.js';
 import type { BotsResponse, DatabasesResponse, InfraCloudService, InfraDatabase, InfraInstance } from './types.js';
 import { graphAll, mgmtCredential } from './azure.js';
+import { readCache, writeCacheSoon } from './cache.js';
 
 const ARM = 'https://management.azure.com';
 /** % used above which a database is critical / on watch (same thresholds as the PowerShell script). */
@@ -183,7 +184,7 @@ interface GraphRow {
   [k: string]: string;
 }
 
-const CONCURRENCY = Math.max(1, Number(process.env.INFRA_CONCURRENCY ?? 24));
+const CONCURRENCY = Math.max(1, Number(process.env.INFRA_CONCURRENCY ?? 40));
 
 let subNames: { at: number; map: Map<string, string> } | null = null;
 async function subscriptionNames(graph: ResourceGraphClient, cfg: AppConfig): Promise<Map<string, string>> {
@@ -264,13 +265,18 @@ async function checkBotServices(
     const base =
       `/subscriptions/${cs.subscriptionId}/resourceGroups/${cs.resourceGroup}` +
       `/providers/Microsoft.Compute/cloudServices/${cs.name}/roleInstances`;
-    const list = await armList<{ name: string }>(cred, `${base}?api-version=2022-04-04`);
+    // One call returns every instance together with its state ($expand=instanceView) instead of one call per instance:
+    // ~1,300 calls became ~160 for the whole fleet. If a response lacks the expanded view we fall back to per-instance calls.
+    type View = { statuses?: Array<{ code?: string; displayStatus?: string }> };
+    const list = await armList<{ name: string; properties?: { instanceView?: View } }>(
+      cred,
+      `${base}?api-version=2022-04-04&$expand=instanceView`,
+    );
     const instances: InfraInstance[] = [];
     await pMap(list ?? [], 8, async (ri) => {
-      const view = await armGet<{ statuses?: Array<{ code?: string; displayStatus?: string }> }>(
-        cred,
-        `${base}/${ri.name}/instanceView?api-version=2022-04-04`,
-      );
+      const view: View | null = ri.properties?.instanceView
+        ? ri.properties.instanceView
+        : await armGet<View>(cred, `${base}/${ri.name}/instanceView?api-version=2022-04-04`);
       instances.push({
         subscriptionId: cs.subscriptionId,
         subscription: cs.subscription,
@@ -318,28 +324,32 @@ async function checkDatabaseRows(cred: TokenCredential, dbs: InfraDatabase[]): P
     const id =
       `/subscriptions/${d.subscriptionId}/resourceGroups/${d.resourceGroup}` +
       `/providers/Microsoft.Sql/servers/${d.server}/databases/${d.name}`;
-    let bytes = 0;
-    for (const days of [1, 7]) {
-      // short window first, widen only when there is no data (same as the script)
-      const m = await armGet<{ value?: Array<{ timeseries?: Array<{ data?: Array<{ timeStamp?: string; maximum?: number }> }> }> }>(
-        cred,
-        `${id}/providers/microsoft.insights/metrics?api-version=2018-01-01&metricnames=storage` +
-          `&aggregation=Maximum&interval=PT1H&timespan=${window(days)}`,
-      );
-      bytes = latestMaximum(m?.value?.[0]?.timeseries?.[0]?.data);
-      if (bytes) break;
-    }
+    // Storage and DTU are independent reads, so they run side by side (they used to run one after the other).
+    const storage = async (): Promise<number> => {
+      for (const days of [1, 7]) {
+        // short window first, widen only when there is no data (same as the script)
+        const m = await armGet<{ value?: Array<{ timeseries?: Array<{ data?: Array<{ timeStamp?: string; maximum?: number }> }> }> }>(
+          cred,
+          `${id}/providers/microsoft.insights/metrics?api-version=2018-01-01&metricnames=storage` +
+            `&aggregation=Maximum&interval=PT1H&timespan=${window(days)}`,
+        );
+        const bytes = latestMaximum(m?.value?.[0]?.timeseries?.[0]?.data);
+        if (bytes) return bytes;
+      }
+      return 0;
+    };
     // Current DTU utilization: the latest one-minute reading (DTU-model databases only; vCore has no such metric).
-    let dtu: { value: number | null; at: string | null } = { value: null, at: null };
-    if (d.isDtu) {
+    const dtuReading = async (): Promise<{ value: number | null; at: string | null }> => {
+      if (!d.isDtu) return { value: null, at: null };
       const span = `${new Date(now - DTU_LOOKBACK_MINUTES * 60_000).toISOString().slice(0, 19)}Z/${new Date(now).toISOString().slice(0, 19)}Z`;
       const m = await armGet<{ value?: Array<{ timeseries?: Array<{ data?: Array<{ timeStamp?: string; average?: number }> }> }> }>(
         cred,
         `${id}/providers/microsoft.insights/metrics?api-version=2018-01-01&metricnames=dtu_consumption_percent` +
           `&aggregation=Average&interval=PT1M&timespan=${span}`,
       );
-      dtu = latestReading(m?.value?.[0]?.timeseries?.[0]?.data);
-    }
+      return latestReading(m?.value?.[0]?.timeseries?.[0]?.data);
+    };
+    const [bytes, dtu] = await Promise.all([storage(), dtuReading()]);
     const bk = backups.get(`${d.subscriptionId}|${d.server}`.toLowerCase());
     const maxBytes = d.totalGB * 2 ** 30;
     out.push({
@@ -382,7 +392,19 @@ export class InfraStore {
   private botLock = serial();
   private dbLock = serial();
 
-  constructor(private readonly cfg: AppConfig) {}
+  constructor(private readonly cfg: AppConfig) {
+    // Results from before the last restart: shown straight away with their own check times (see cache.ts).
+    const saved = readCache<{ bots?: unknown; dbs?: unknown }>('infra');
+    if (Array.isArray(saved?.bots))
+      for (const e of saved.bots as Array<[string, { service: InfraCloudService; instances: InfraInstance[] }]>)
+        if (Array.isArray(e) && typeof e[0] === 'string' && e[1]?.service && Array.isArray(e[1].instances)) this.botChecked.set(e[0], e[1]);
+    if (Array.isArray(saved?.dbs))
+      for (const e of saved.dbs as Array<[string, InfraDatabase]>) if (Array.isArray(e) && typeof e[0] === 'string' && e[1]?.name) this.dbChecked.set(e[0], e[1]);
+  }
+
+  private persist(): void {
+    writeCacheSoon('infra', { bots: [...this.botChecked], dbs: [...this.dbChecked] });
+  }
 
   private credential(): TokenCredential {
     return (this.cred ??= mgmtCredential());
@@ -438,6 +460,7 @@ export class InfraStore {
       const inv = await this.bots(everything);
       const targets = selectBots(inv, scope);
       for (const r of await checkBotServices(this.credential(), targets)) this.botChecked.set(botKey(r.service), r);
+      this.persist();
       return this.botsResponse(inv);
     });
   }
@@ -448,6 +471,7 @@ export class InfraStore {
       const inv = await this.dbs(everything);
       const targets = selectDbs(inv, scope);
       for (const d of await checkDatabaseRows(this.credential(), targets)) this.dbChecked.set(dbKey(d), d);
+      this.persist();
       return this.dbsResponse(inv);
     });
   }

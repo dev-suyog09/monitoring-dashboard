@@ -1586,3 +1586,272 @@ input:focus-visible { outline-offset: 1px; }
 .cust-side .att-compact .att-text b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cust-side .att-compact .att-pills { flex: 0 1 auto; max-width: 64%; }
 .cust-side .att-compact .att-item { align-items: center; }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   macOS themes — "macOS" (light) and "macOS Dark": system blue, Apple greys, frosted-glass sidebar, window traffic lights,
+   smaller radii, flat cards, system font stack (SF Pro on a Mac; Segoe UI / system-ui elsewhere)
+   ═════════════════════════════════════════════════════════════════════════ */
+html[data-palette='macos'] {
+  --page: #f5f5f7; --shell: #f5f5f7; --card: #ffffff; --card-2: #f5f5f7; --border: #e5e5ea; --border-strong: #d1d1d6;
+  --text-1: #1d1d1f; --text-2: #515154; --text-3: #6e6e73; --ink: #1d1d1f; --feature: #1d1d1f; --on-ink: #ffffff;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05); --shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
+  --ok: #34c759; --ok-fg: #1d8a3a; --warn: #ff9f0a; --warn-fg: #946000; --err: #ff3b30; --err-fg: #d70015; --idle: #8e8e93; --idle-fg: #636366;
+  --accent: #007aff; --accent-2: #0a60d6;
+}
+html[data-tone='calm'][data-palette='macosdark'] {
+  --page: #1e1e1e; --shell: #1e1e1e; --card: #2c2c2e; --card-2: #3a3a3c; --border: #3d3d40; --border-strong: #545458;
+  --text-1: #f5f5f7; --text-2: #c7c7cc; --text-3: #98989d; --ink: #f5f5f7; --on-ink: #1e1e1e; --on-feature: #f5f5f7; --feature: #2c2c2e;
+  --ok: #30d158; --ok-fg: #5ee27f; --warn: #ff9f0a; --warn-fg: #ffb840; --err: #ff453a; --err-fg: #ff6b62; --idle: #8e8e93; --idle-fg: #aeaeb2;
+  --accent: #0a84ff; --accent-2: #0066d6;
+}
+html[data-palette='macos'] body { background: linear-gradient(180deg, #fafafa 0%, #f0f0f3 100%) fixed; }
+html[data-palette='macosdark'] body { background: #1e1e1e; }
+
+/* system font, slightly tighter like SF */
+html[data-palette^='macos'] body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Helvetica Neue', 'Segoe UI Variable Text', 'Segoe UI', system-ui, Roboto, sans-serif;
+  letter-spacing: -0.011em;
+}
+html[data-palette^='macos'] h1, html[data-palette^='macos'] .metric-val, html[data-palette^='macos'] .stat-val { letter-spacing: -0.022em; }
+
+/* flat window-style cards with hairline borders */
+html[data-palette^='macos'] .panel, html[data-palette^='macos'] .stat, html[data-palette^='macos'] .mstrip,
+html[data-palette^='macos'] .cd-sec, html[data-palette^='macos'] .set-group, html[data-palette^='macos'] .hdr-user { border-radius: 14px; }
+html[data-palette^='macos'] .panel, html[data-palette^='macos'] .mstrip, html[data-palette^='macos'] .cd-sec, html[data-palette^='macos'] .set-group {
+  background: var(--card); border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 18px rgba(0, 0, 0, 0.05);
+}
+html[data-palette='macosdark'] .panel, html[data-palette='macosdark'] .mstrip, html[data-palette='macosdark'] .cd-sec, html[data-palette='macosdark'] .set-group { box-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(0, 0, 0, 0.25); }
+html[data-palette^='macos'] .panel-hd { background: transparent; border-bottom: 1px solid var(--border); padding: 12px 16px; }
+html[data-palette^='macos'] .panel-hd h3 { font-size: 13px; font-weight: 600; color: var(--text-1); letter-spacing: -0.01em; }
+html[data-palette^='macos'] .dtable-wrap { border-radius: 0 0 14px 14px; }
+html[data-palette^='macos'] .dtable th { background: color-mix(in srgb, var(--card-2) 70%, var(--card)); font-size: 11px; font-weight: 600; letter-spacing: 0; text-transform: none; color: var(--text-3); }
+html[data-palette^='macos'] .dtable tbody tr:nth-child(even) td { background: transparent; }
+html[data-palette^='macos'] .dtable tbody tr:hover td { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+html[data-palette^='macos'] .dtable td { border-bottom-color: color-mix(in srgb, var(--border) 80%, transparent); }
+
+/* stat cards: flat, with a coloured number instead of a solid colour block */
+html[data-palette='macos'] .stat, html[data-palette='macos'] .stat.st-ok, html[data-palette='macos'] .stat.st-warn,
+html[data-palette='macos'] .stat.st-err, html[data-palette='macos'] .stat.st-idle { background: var(--card); border: 1px solid var(--border); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 6px 18px rgba(0, 0, 0, 0.05); }
+html[data-palette='macos'] .stat::before, html[data-palette='macos'] .stat::after { display: none; }
+html[data-palette='macos'] .stat-label { color: var(--text-3) !important; text-shadow: none; }
+html[data-palette='macos'] .stat-val { color: var(--c-fg, var(--text-1)) !important; text-shadow: none; }
+html[data-palette='macos'] .stat svg polyline { stroke: var(--c, var(--accent)); }
+html[data-palette='macos'] .stat svg polygon { fill: var(--c, var(--accent)); opacity: 0.12; }
+
+/* frosted sidebar with window "traffic lights" */
+html[data-palette^='macos'] .side-nav {
+  border-radius: 18px; padding-top: 40px; backdrop-filter: blur(28px) saturate(180%); -webkit-backdrop-filter: blur(28px) saturate(180%);
+}
+html[data-palette='macos'] .side-nav { background: rgba(248, 248, 250, 0.74); border: 1px solid rgba(0, 0, 0, 0.08); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.10); }
+html[data-palette='macosdark'] .side-nav { background: rgba(44, 44, 46, 0.72); border: 1px solid rgba(255, 255, 255, 0.10); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45); }
+html[data-palette^='macos'] .side-nav::before {
+  content: ''; position: absolute; top: 14px; left: 14px; width: 12px; height: 12px; border-radius: 50%;
+  background: #ff5f57; box-shadow: 18px 0 0 #febc2e, 36px 0 0 #28c840, 0 0 0 0.5px rgba(0, 0, 0, 0.18) inset;
+}
+html[data-palette^='macos'] .side-item { border-radius: 10px; }
+html[data-palette^='macos'] .side-logo { border-radius: 12px; }
+html[data-palette^='macos'] .side-label { font-weight: 500; }
+html[data-palette^='macos'] .side-on, html[data-palette^='macos'] .side-on:hover { background: color-mix(in srgb, var(--accent) 16%, transparent); color: var(--accent); border-color: transparent; }
+
+/* controls: rounded rectangles like macOS buttons, blue primary */
+html[data-palette^='macos'] .pill, html[data-palette^='macos'] .icirc { border-radius: 8px; box-shadow: 0 1px 1px rgba(0, 0, 0, 0.06); background: var(--card); border: 1px solid var(--border-strong); color: var(--text-1); }
+html[data-palette='macosdark'] .pill, html[data-palette='macosdark'] .icirc { background: var(--card-2); box-shadow: none; }
+html[data-palette^='macos'] .pill-on { background: var(--accent); color: #fff; border-color: transparent; }
+html[data-palette^='macos'] .btn-accent {
+  border-radius: 8px; color: #fff; border: none; font-weight: 600;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 88%, #fff) 0%, var(--accent) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 1px 2px rgba(0, 0, 0, 0.22);
+}
+html[data-palette^='macos'] .chip { border-radius: 6px; font-weight: 600; }
+html[data-palette^='macos'] .spill, html[data-palette^='macos'] .cust-envtag { border-radius: 5px; }
+html[data-palette^='macos'] .wl { border-radius: 10px; background: var(--card); border: 1px solid var(--border-strong); box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.05); }
+html[data-palette^='macos'] .wl input { border-radius: 10px; }
+html[data-palette^='macos'] .seg { border-radius: 9px; background: color-mix(in srgb, var(--text-1) 7%, transparent); border: none; }
+html[data-palette^='macos'] .seg button { border-radius: 7px; font-weight: 600; }
+html[data-palette^='macos'] .seg .seg-on { background: var(--card); color: var(--text-1); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18); }
+html[data-palette='macosdark'] .seg .seg-on { background: #636366; color: #fff; }
+html[data-palette^='macos'] .insights { border-radius: 12px; background: color-mix(in srgb, var(--accent) 8%, var(--card)); border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+html[data-palette^='macos'] .ins-btn { border-radius: 8px; background: var(--accent); box-shadow: none; }
+html[data-palette^='macos'] .ins-ico { border-radius: 9px; background: var(--accent); box-shadow: none; }
+html[data-palette^='macos'] .page-eyebrow { border-radius: 6px; }
+html[data-palette^='macos'] .page-title h1 { font-weight: 700; }
+html[data-palette^='macos'] .drawer, html[data-palette^='macos'] .sheet { border-radius: 14px 0 0 14px; }
+html[data-palette='macos'] .drawer, html[data-palette='macos'] .sheet { background: rgba(250, 250, 252, 0.92); backdrop-filter: blur(30px) saturate(180%); }
+html[data-palette='macosdark'] .drawer, html[data-palette='macosdark'] .sheet { background: rgba(38, 38, 40, 0.92); backdrop-filter: blur(30px) saturate(180%); }
+html[data-palette^='macos'] .metric-on { box-shadow: inset 0 -2px 0 var(--mc); }
+html[data-palette^='macos'] .toast { border-radius: 12px; }
+html[data-palette^='macos'] .switch-on, html[data-palette^='macos'] .seg .seg-on.x { background: var(--ok); }
+html[data-palette='macos'] .set-select { background: #fff; border-radius: 8px; }
+@media (max-width: 860px) {
+  html[data-palette^='macos'] .side-nav { padding-top: 6px; border-radius: 16px 16px 0 0; }
+  html[data-palette^='macos'] .side-nav::before { display: none; }
+}
+html[data-palette^='macos'] .hdr { background: transparent; box-shadow: none; backdrop-filter: none; border-bottom: 1px solid var(--border); border-radius: 0; }
+
+/* macOS AMOLED: the macOS look on the AMOLED structure, so every surface is true black (#000) and only thin accents carry colour */
+html[data-palette='macosamoled'] {
+  --card: #0a0a0a; --card-2: #151517; --border: #212124; --border-strong: #3a3a3d;
+  --text-1: #f5f5f7; --text-2: #c7c7cc; --text-3: #98989d; --ink: #f5f5f7;
+  --ok: #30d158; --ok-fg: #5ee27f; --warn: #ff9f0a; --warn-fg: #ffb840; --err: #ff453a; --err-fg: #ff6b62; --idle: #8e8e93; --idle-fg: #aeaeb2;
+  --accent: #0a84ff; --accent-2: #0066d6;
+}
+html[data-palette='macosamoled'] body { background: #000; }
+html[data-palette='macosamoled'] .panel, html[data-palette='macosamoled'] .mstrip, html[data-palette='macosamoled'] .cd-sec, html[data-palette='macosamoled'] .set-group { background: #0a0a0a; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.02); }
+html[data-palette='macosamoled'] .panel-hd { background: transparent; }
+html[data-palette='macosamoled'] .dtable th { background: #000; }
+html[data-palette='macosamoled'] .dtable td { border-bottom-color: #19191b; }
+html[data-palette='macosamoled'] .dtable tbody tr:nth-child(even) td { background: transparent; }
+html[data-palette='macosamoled'] .side-nav { background: rgba(14, 14, 16, 0.78); border: 1px solid rgba(255, 255, 255, 0.12); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.8); }
+html[data-palette='macosamoled'] .pill, html[data-palette='macosamoled'] .icirc { background: #151517; box-shadow: none; }
+html[data-palette='macosamoled'] .seg .seg-on { background: #3a3a3c; color: #fff; }
+html[data-palette='macosamoled'] .drawer, html[data-palette='macosamoled'] .sheet { background: rgba(8, 8, 9, 0.94); backdrop-filter: blur(30px) saturate(180%); }
+html[data-palette='macosamoled'] .hdr { border-bottom-color: #1c1c1f; }
+html[data-palette='macosamoled'] .wl, html[data-palette='macosamoled'] .wl-suggest, html[data-palette='macosamoled'] .wl-dropdown { background: #0a0a0a; }
+html[data-palette='macosamoled'] .insights { background: color-mix(in srgb, var(--accent) 9%, #000); }
+html[data-palette='macosamoled'] .cd-item, html[data-palette='macosamoled'] .att-item:hover { background: #151517; }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   macOS Glass (light) and macOS Glass Dark — "liquid glass": translucent, heavily blurred surfaces with a bright edge and an
+   inner highlight, floating over a colourful wallpaper. Builds on the macOS theme rules (traffic lights, system blue, radii).
+   ═════════════════════════════════════════════════════════════════════════ */
+html[data-palette='macosglass'] {
+  --page: #e9eefb; --shell: #e9eefb;
+  --card: rgba(255, 255, 255, 0.50); --card-2: rgba(255, 255, 255, 0.36); --border: rgba(255, 255, 255, 0.72); --border-strong: rgba(110, 120, 160, 0.30);
+  --text-1: #1d1d1f; --text-2: #3c3c43; --text-3: #5e5e66; --ink: #1d1d1f; --feature: #1d1d1f; --on-ink: #ffffff;
+  --ok: #34c759; --ok-fg: #17803a; --warn: #ff9f0a; --warn-fg: #8a5600; --err: #ff3b30; --err-fg: #c4001a; --idle: #8e8e93; --idle-fg: #55555a;
+  --accent: #007aff; --accent-2: #0a60d6;
+}
+html[data-tone='calm'][data-palette='macosglassdark'] {
+  --page: #0a0e24; --shell: #0a0e24;
+  --card: rgba(255, 255, 255, 0.075); --card-2: rgba(255, 255, 255, 0.12); --border: rgba(255, 255, 255, 0.15); --border-strong: rgba(255, 255, 255, 0.28);
+  --text-1: #f5f5f7; --text-2: #d1d1d6; --text-3: #a1a1a8; --ink: #f5f5f7; --on-ink: #0a0e24; --on-feature: #f5f5f7; --feature: #1c1c2e;
+  --ok: #30d158; --ok-fg: #62e385; --warn: #ff9f0a; --warn-fg: #ffb840; --err: #ff453a; --err-fg: #ff6b62; --idle: #8e8e93; --idle-fg: #b0b0b6;
+  --accent: #0a84ff; --accent-2: #0066d6;
+}
+
+/* the wallpaper the glass floats over */
+html[data-palette='macosglass'] body {
+  background:
+    radial-gradient(900px 620px at 6% 6%, #9fc5ff 0%, transparent 62%),
+    radial-gradient(820px 600px at 94% 3%, #f4b4ea 0%, transparent 62%),
+    radial-gradient(900px 700px at 82% 96%, #94e6e0 0%, transparent 62%),
+    radial-gradient(800px 620px at 4% 92%, #ffd7a3 0%, transparent 62%),
+    #e8edfa;
+  background-attachment: fixed;
+}
+html[data-palette='macosglassdark'] body {
+  background:
+    radial-gradient(900px 620px at 6% 6%, #3a2aa0 0%, transparent 62%),
+    radial-gradient(820px 600px at 94% 3%, #0b6fb4 0%, transparent 62%),
+    radial-gradient(900px 700px at 82% 96%, #a31a6e 0%, transparent 62%),
+    radial-gradient(800px 620px at 4% 92%, #0c7b6a 0%, transparent 62%),
+    #0a0e24;
+  background-attachment: fixed;
+}
+
+/* every major surface becomes glass: blur + saturate what is behind it, a bright edge and an inner highlight */
+html[data-palette^='macosglass'] :is(.panel, .mstrip, .stat, .cd-sec, .set-group, .insights, .hdr-user, .wl, .side-nav, .toast, .att-list, .alert-card, .theme-card, .tune-card) {
+  backdrop-filter: blur(26px) saturate(190%); -webkit-backdrop-filter: blur(26px) saturate(190%);
+  background: var(--card); border: 1px solid var(--border);
+}
+html[data-palette='macosglass'] :is(.panel, .mstrip, .stat, .cd-sec, .set-group, .hdr-user, .side-nav) {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.8), inset 0 0 0 0.5px rgba(255, 255, 255, 0.35), 0 10px 34px rgba(60, 70, 140, 0.16);
+}
+html[data-palette='macosglassdark'] :is(.panel, .mstrip, .stat, .cd-sec, .set-group, .hdr-user, .side-nav) {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 0 0 0.5px rgba(255, 255, 255, 0.10), 0 12px 38px rgba(0, 0, 0, 0.35);
+}
+/* the "att-list" sits inside a panel; do not double up the glass */
+html[data-palette^='macosglass'] .att-list { backdrop-filter: none; -webkit-backdrop-filter: none; background: transparent; border: none; box-shadow: none; }
+
+/* sidebar and panels that slide in: a little more opaque so text stays crisp */
+html[data-palette='macosglass'] .side-nav { background: rgba(255, 255, 255, 0.46); }
+html[data-palette='macosglassdark'] .side-nav { background: rgba(255, 255, 255, 0.08); }
+html[data-palette='macosglass'] :is(.drawer, .sheet) { background: rgba(255, 255, 255, 0.72); backdrop-filter: blur(34px) saturate(190%); -webkit-backdrop-filter: blur(34px) saturate(190%); border-left: 1px solid rgba(255, 255, 255, 0.8); }
+html[data-palette='macosglassdark'] :is(.drawer, .sheet) { background: rgba(22, 24, 48, 0.72); backdrop-filter: blur(34px) saturate(190%); -webkit-backdrop-filter: blur(34px) saturate(190%); border-left: 1px solid rgba(255, 255, 255, 0.16); }
+html[data-palette^='macosglass'] .sheet-hd { background: transparent; }
+
+/* glass has no solid colour blocks: stat cards become glass with a coloured number */
+html[data-palette='macosglass'] .stat, html[data-palette='macosglass'] .stat.st-ok, html[data-palette='macosglass'] .stat.st-warn,
+html[data-palette='macosglass'] .stat.st-err, html[data-palette='macosglass'] .stat.st-idle { background: var(--card); border: 1px solid var(--border); }
+html[data-palette='macosglass'] .stat::before, html[data-palette='macosglass'] .stat::after { display: none; }
+html[data-palette='macosglass'] .stat-label { color: var(--text-3) !important; text-shadow: none; }
+html[data-palette='macosglass'] .stat-val { color: var(--c-fg, var(--text-1)) !important; text-shadow: none; }
+html[data-palette='macosglass'] .stat svg polyline { stroke: var(--c, var(--accent)); }
+html[data-palette='macosglass'] .stat svg polygon { fill: var(--c, var(--accent)); opacity: 0.14; }
+
+/* tables and rows sit on the glass without their own background */
+html[data-palette^='macosglass'] .dtable th { background: transparent; }
+html[data-palette^='macosglass'] .dtable td { background: transparent; border-bottom-color: color-mix(in srgb, var(--text-1) 9%, transparent); }
+html[data-palette^='macosglass'] .dtable tbody tr:nth-child(even) td { background: transparent; }
+html[data-palette^='macosglass'] .dtable tbody tr:hover td { background: color-mix(in srgb, var(--accent) 12%, transparent); }
+html[data-palette^='macosglass'] .panel-hd { background: transparent; }
+html[data-palette^='macosglass'] .cd-item, html[data-palette^='macosglass'] .set-row-ctl .set-select { background: var(--card-2); border-color: var(--border); }
+html[data-palette^='macosglass'] .att-item:hover { background: color-mix(in srgb, var(--text-1) 8%, transparent); }
+html[data-palette^='macosglass'] .pill, html[data-palette^='macosglass'] .icirc { background: var(--card-2); border: 1px solid var(--border); backdrop-filter: blur(16px) saturate(180%); -webkit-backdrop-filter: blur(16px) saturate(180%); box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4); color: var(--text-1); }
+html[data-palette^='macosglass'] .pill-on { background: var(--accent); color: #fff; border-color: transparent; }
+html[data-palette^='macosglass'] .btn-accent { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4), 0 6px 18px color-mix(in srgb, var(--accent) 45%, transparent); }
+html[data-palette^='macosglass'] .seg { background: color-mix(in srgb, var(--text-1) 8%, transparent); }
+html[data-palette='macosglass'] .seg .seg-on { background: rgba(255, 255, 255, 0.9); color: #1d1d1f; }
+html[data-palette='macosglassdark'] .seg .seg-on { background: rgba(255, 255, 255, 0.28); color: #fff; }
+html[data-palette^='macosglass'] .hdr { border-bottom-color: color-mix(in srgb, var(--text-1) 10%, transparent); }
+html[data-palette^='macosglass'] .insights { background: color-mix(in srgb, var(--accent) 12%, var(--card)); }
+html[data-palette^='macosglass'] .wl-suggest, html[data-palette^='macosglass'] .wl-dropdown { background: var(--card); backdrop-filter: blur(30px) saturate(190%); -webkit-backdrop-filter: blur(30px) saturate(190%); border: 1px solid var(--border); }
+html[data-palette='macosglass'] .set-select { color: #1d1d1f; }
+html[data-palette='macosglassdark'] .set-select { color: #f5f5f7; }
+@media (max-width: 860px) { html[data-palette^='macosglass'] .side-nav { border-radius: 18px 18px 0 0; } }
+/* if the browser cannot blur, fall back to solid-ish surfaces so text never sits on a busy wallpaper */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-palette='macosglass'] { --card: rgba(255, 255, 255, 0.86); --card-2: rgba(245, 247, 252, 0.9); }
+  html[data-palette='macosglassdark'] { --card: rgba(34, 36, 62, 0.92); --card-2: rgba(48, 50, 82, 0.94); }
+}
+
+/* ═════ Load-time pass: shorter entry motion, only the first screenful of rows animates ═════ */
+.dash > :not(.hdr) { animation-duration: 0.36s; }
+.dash > :nth-child(3) { animation-delay: 0.02s; }
+.dash > :nth-child(4) { animation-delay: 0.04s; }
+.dash > :nth-child(5) { animation-delay: 0.06s; }
+.dash > :nth-child(6) { animation-delay: 0.08s; }
+.dash > :nth-child(7) { animation-delay: 0.10s; }
+.dash > :nth-child(8) { animation-delay: 0.12s; }
+.dtable tbody tr { animation-duration: 0.26s; }
+.dtable tbody tr:nth-child(n + 16) { animation: none; }
+.dtable tbody tr:nth-child(n + 4) { animation-delay: 0.05s; }
+.donut-seg { animation-duration: 0.7s; }
+.hbar-fill, .hbar-seg { animation-duration: 0.6s; }
+.chart-grid { animation-duration: 0.3s; }
+
+/* ═════════════════════════════════════════════════════════════════════════
+   Wallpaper fix: the page background must cover the WHOLE page, not just the first screen.
+   <body> used to be exactly one viewport tall (height: 100%) and <html> has its own colour, so a fixed gradient stopped
+   after the first screen and the plain colour showed below it while scrolling. The page is now as tall as its content.
+   ═════════════════════════════════════════════════════════════════════════ */
+body, #root { height: auto; min-height: 100%; }
+
+/* macOS Glass AMOLED: the glass look on true black. Near-black wallpaper with faint colour glows, so the glass has something
+   to blur while the page still reads as black (OLED pixels stay off outside the glows). Uses the AMOLED structure. */
+html[data-palette='macosglassamoled'] {
+  --page: #000; --shell: #000;
+  --card: rgba(255, 255, 255, 0.055); --card-2: rgba(255, 255, 255, 0.09); --border: rgba(255, 255, 255, 0.13); --border-strong: rgba(255, 255, 255, 0.24);
+  --text-1: #f5f5f7; --text-2: #d1d1d6; --text-3: #a1a1a8; --ink: #f5f5f7; --on-ink: #000;
+  --ok: #30d158; --ok-fg: #62e385; --warn: #ff9f0a; --warn-fg: #ffb840; --err: #ff453a; --err-fg: #ff6b62; --idle: #8e8e93; --idle-fg: #b0b0b6;
+  --accent: #0a84ff; --accent-2: #0066d6;
+}
+html[data-palette='macosglassamoled'] body {
+  background:
+    radial-gradient(760px 520px at 6% 4%, rgba(10, 132, 255, 0.20) 0%, transparent 64%),
+    radial-gradient(700px 520px at 96% 2%, rgba(191, 90, 242, 0.16) 0%, transparent 64%),
+    radial-gradient(800px 560px at 84% 98%, rgba(255, 55, 95, 0.12) 0%, transparent 64%),
+    radial-gradient(700px 520px at 3% 94%, rgba(48, 209, 88, 0.10) 0%, transparent 64%),
+    #000;
+  background-attachment: fixed;
+}
+html[data-palette='macosglassamoled'] :is(.panel, .mstrip, .stat, .cd-sec, .set-group, .hdr-user, .side-nav) {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.20), inset 0 0 0 0.5px rgba(255, 255, 255, 0.08), 0 12px 38px rgba(0, 0, 0, 0.7);
+}
+html[data-palette='macosglassamoled'] .side-nav { background: rgba(255, 255, 255, 0.07); }
+html[data-palette='macosglassamoled'] :is(.drawer, .sheet) { background: rgba(10, 10, 12, 0.78); backdrop-filter: blur(34px) saturate(190%); -webkit-backdrop-filter: blur(34px) saturate(190%); border-left: 1px solid rgba(255, 255, 255, 0.16); }
+html[data-palette='macosglassamoled'] .seg .seg-on { background: rgba(255, 255, 255, 0.26); color: #fff; }
+html[data-palette='macosglassamoled'] .set-select { color: #f5f5f7; }
+html[data-palette='macosglassamoled'] .dtable th, html[data-palette='macosglassamoled'] .panel-hd { background: transparent; }
+html[data-palette='macosglassamoled'] .hdr { background: transparent; border-bottom-color: rgba(255, 255, 255, 0.10); }
+html[data-palette='macosglassamoled'] .wl-suggest, html[data-palette='macosglassamoled'] .wl-dropdown { background: rgba(14, 14, 16, 0.86); }

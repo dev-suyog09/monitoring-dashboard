@@ -118,9 +118,11 @@ All values are optional except how to find accounts (`STORAGE_DISCOVER` or `STOR
 | `STORAGE_CONN_1..N` | – | Connection-string fallback (contains keys) |
 | `USE_MANAGED_IDENTITY` | – | `true` = managed identity instead of `az login` |
 | `REFRESH_MS` | `60000` | Background archive re-scan interval (the launcher sets `900000`) |
-| `SCAN_CONCURRENCY` | `10` | Accounts scanned in parallel |
+| `SCAN_CONCURRENCY` | `20` | Accounts scanned in parallel (the archive phase) |
+| `BOT_CONCURRENCY` | `4` | Bot-storage accounts listed at once in the background phase (kept low so the server stays responsive) |
+| `CACHE_DIR` | `backend/.cache` | Where the last results are kept so a restart shows them instantly |
 | `KEY_CONCURRENCY` | `32` | Account keys fetched in parallel at start-up |
-| `INFRA_CONCURRENCY` | `24` | Parallel Azure calls for bot / database checks |
+| `INFRA_CONCURRENCY` | `40` | Parallel Azure calls for bot / database checks |
 | `BOT_CONTAINER` | `audio-video` | Container checked in bot storage |
 | `BOT_ACCOUNT_PREFIX` | `botstorage` | Bot storage account name prefix (empty disables the check) |
 | `BOT_STUCK_MINUTES` | `60` | An interaction untouched this long counts as stuck |
@@ -155,6 +157,25 @@ Both ask for account names (one, or comma-separated) and your IP (Enter accepts 
 | `GET /api/databases` | Database inventory plus whatever has been checked |
 | `POST /api/databases/check` | Check databases: no params = all; `server=`, `server=&db=`, or `subscriptionId=` |
 | `POST /api/restart` | Restart the backend via the scheduled task (Windows, local dashboard only) |
+
+## Performance
+
+What was measured (this machine, real Azure data) and what changed:
+
+| | Before | After |
+|---|---|---|
+| First page load: bytes sent | 1,118 KB | **~235 KB** (Brotli/gzip compression) |
+| Page visible (first paint / customers table) | 4.2 s / 4.2 s | **0.3 s / 0.5 s** |
+| Repeat visit | files re-checked every time | hashed files cached for a year, no download |
+| After a backend restart (scheduled every 15 min) | no data for 1-4 min | **data in ~6 s** (last results are kept on disk and refreshed in the background) |
+| Check all bots | 61 s (about 1,300 Azure calls) | **~20 s** (about 160 calls: one `$expand=instanceView` per cloud service) |
+| Check all databases | 42 s | ~37 s (storage and DTU read side by side) |
+| Archive refresh (the button) | 57-109 s | **~20 s** (the slow bot-storage listing now runs in the background and merges in afterwards) |
+| `localhost` request latency | ~2 s per connection (IPv6 fallback) | **~3 ms** (listens on both loopback addresses) |
+
+How it stays fast: other tabs, panels and charts are separate chunks fetched when the browser is idle; the page's data requests start
+before the app code has finished loading; only the first screenful of table rows animates. `npm run e2e` includes
+`perf.spec.ts`, which fails if the page gets heavier or slower than agreed budgets.
 
 ## Latest files per folder
 

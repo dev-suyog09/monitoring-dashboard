@@ -4,17 +4,22 @@ import fs from 'node:fs';
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
+import compression from 'compression';
 import { loadConfig } from './config.js';
 import { buildAccountClients, mgmtCredential } from './azure.js';
 import { checkAccount, todayStr, setEgressIp, friendlyError } from './checker.js';
+import { checkBotStorage } from './bot.js';
 import { listLatestFiles } from './files.js';
 import { InfraStore } from './infra.js';
 import { csrfGuard, hostGuard, rateLimiter, securityHeaders } from './security.js';
-import type { AccountClient, CheckResponse, FilesResponse } from './types.js';
+import { readCache, writeCacheSoon } from './cache.js';
+import type { AccountClient, BotStorageResult, CheckResponse, FilesResponse } from './types.js';
 
 const cfg = loadConfig();
 const REFRESH_MS = Number(process.env.REFRESH_MS ?? 60_000);
-const SCAN_CONCURRENCY = Math.max(1, Number(process.env.SCAN_CONCURRENCY ?? 10));
+const SCAN_CONCURRENCY = Math.max(1, Number(process.env.SCAN_CONCURRENCY ?? 20));
+/** Bot-storage accounts listed at the same time in the background phase of a scan. */
+const BOT_CONCURRENCY = Math.max(1, Number(process.env.BOT_CONCURRENCY ?? 4));
 /** How long a per-folder file listing is served from cache before re-listing. */
 const FILES_CACHE_MS = Number(process.env.FILES_CACHE_MS ?? 120_000);
 /** Listing a whole day folder fans out 16 requests; give it more room than a scan. */
@@ -37,6 +42,18 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
 let clients: AccountClient[] = [];
 let currentScan: Promise<void> | null = null;
 let snapshot: CheckResponse | null = null;
+
+/**
+ * After a restart, serve the previous scan (if it is from today) straight away instead of "warming up" for 1-4 minutes;
+ * the real scan runs in the background and replaces it. Its generatedAt stays the time it was really gathered.
+ */
+function restoreSnapshot(): void {
+  const saved = readCache<CheckResponse>('snapshot');
+  if (saved && Array.isArray(saved.results) && saved.results.length > 0 && saved.today === (cfg.checkDate ?? todayStr())) {
+    snapshot = saved;
+    console.log(`[startup] restored the previous scan from ${saved.generatedAt} (${saved.results.length} accounts); refreshing in the background`);
+  }
+}
 let egressIp: string | null = null;
 
 // Bot instances + SQL databases: nothing is scanned until the dashboard asks (see /api/bots, /api/databases).
@@ -115,6 +132,7 @@ const HOST = process.env.HOST ?? '127.0.0.1';
 const ALLOWED_HOSTS = (process.env.ALLOWED_HOSTS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
 app.use(hostGuard(ALLOWED_HOSTS));
 app.use(securityHeaders());
+app.use(compression()); // JSON, JS and CSS shrink to roughly a fifth on the wire
 const isPost = (req: express.Request) => req.method === 'POST';
 app.use(
   '/api',
@@ -328,10 +346,20 @@ app.get('/api/files', async (req, res) => {
 // Serve the built frontend if present, so one process serves API + UI.
 const frontendDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../frontend/dist');
 if (fs.existsSync(frontendDist)) {
-  app.use(express.static(frontendDist, { dotfiles: 'ignore', index: false }));
-  app.get('/', (_req, res) => res.sendFile(path.join(frontendDist, 'index.html')));
+  // Built files carry a content hash in their name, so they can be cached "forever"; the page itself is re-checked each visit.
+  const NO_CACHE = { 'Cache-Control': 'no-cache' };
+  app.use(
+    express.static(frontendDist, {
+      dotfiles: 'ignore',
+      index: false,
+      setHeaders(res, filePath) {
+        res.setHeader('Cache-Control', /[\\/]assets[\\/]/.test(filePath) ? 'public, max-age=31536000, immutable' : 'no-cache');
+      },
+    }),
+  );
+  app.get('/', (_req, res) => res.sendFile(path.join(frontendDist, 'index.html'), { headers: NO_CACHE }));
   // SPA fallback for page routes only (no file extension, not /api): a missing file such as a source map is a real 404.
-  app.get(/^(?!\/api)[^.]*$/, (_req, res) => res.sendFile(path.join(frontendDist, 'index.html')));
+  app.get(/^(?!\/api)[^.]*$/, (_req, res) => res.sendFile(path.join(frontendDist, 'index.html'), { headers: NO_CACHE }));
 }
 
 // Anything unexpected: a generic answer (details stay in the server log), never a stack trace.
@@ -357,23 +385,74 @@ function botScan() {
     : undefined;
 }
 
-/** Run one scan; concurrent callers share the same in-flight scan. */
+function publish(results: CheckResponse['results'], today: string): void {
+  snapshot = {
+    today,
+    generatedAt: new Date().toISOString(),
+    container: cfg.container,
+    results,
+    egressIp,
+    dateOverride: !!cfg.checkDate,
+  };
+  writeCacheSoon('snapshot', snapshot); // so the next restart can show it straight away
+}
+
+// Bot storage ("anything stuck?") lists tens of thousands of files and takes ~45 s, while the archive check of every
+// account takes ~10 s. They used to be one scan, so the archive numbers waited for the slow part. Now the archive result is
+// published as soon as it is ready, and the bot-storage results are merged into the snapshot when the background phase ends.
+let botPhase: Promise<void> | null = null;
+let botPhaseAgain = false;
+
+function startBotPhase(today: string): void {
+  if (botPhase) {
+    botPhaseAgain = true; // a newer scan finished while this was still running: go again right after
+    return;
+  }
+  const bot = botScan();
+  if (!bot) return;
+  botPhase = (async () => {
+    const t0 = Date.now();
+    const found = new Map<string, BotStorageResult>();
+    await mapLimit(
+      clients.filter((c) => c.botTargets && c.botTargets.length > 0),
+      BOT_CONCURRENCY,
+      async (c) => {
+        found.set(c.accountName, await checkBotStorage(c.botTargets!, bot.options, bot.cache));
+      },
+    );
+    if (snapshot && snapshot.today === today) {
+      snapshot = { ...snapshot, results: snapshot.results.map((r) => (found.has(r.accountName) ? { ...r, bot: found.get(r.accountName) } : r)) };
+      writeCacheSoon('snapshot', snapshot);
+    }
+    console.log(`[scan] bot storage phase finished in ${((Date.now() - t0) / 1000).toFixed(0)}s (${found.size} accounts)`);
+  })()
+    .catch((err) => console.error(`Bot storage scan failed: ${friendlyError(err)}`))
+    .finally(() => {
+      botPhase = null;
+      if (botPhaseAgain) {
+        botPhaseAgain = false;
+        startBotPhase(today);
+      }
+    });
+}
+
+/** Run one scan; concurrent callers share the same in-flight scan. Resolves when the archive phase is done (bot storage continues in the background). */
 function scanOnce(): Promise<void> {
   if (currentScan) return currentScan;
   currentScan = (async () => {
     if (clients.length === 0) return;
     await refreshEgressIp();
     const today = cfg.checkDate ?? todayStr();
-    const bot = botScan();
-    const results = await mapLimit(clients, SCAN_CONCURRENCY, (c) => checkAccount(c, today, cfg.checkTimeoutMs, bot));
-    snapshot = {
-      today,
-      generatedAt: new Date().toISOString(),
-      container: cfg.container,
-      results,
-      egressIp,
-      dateOverride: !!cfg.checkDate,
-    };
+    // keep showing the last bot-storage answer for each account until the background phase replaces it
+    const previousBot = new Map((snapshot?.results ?? []).map((r) => [r.accountName, r.bot]));
+    const results = await mapLimit(clients, SCAN_CONCURRENCY, async (c) => {
+      const r = await checkAccount(c, today, cfg.checkTimeoutMs);
+      const prev = previousBot.get(r.accountName);
+      if (prev) r.bot = prev;
+      return r;
+    });
+    publish(results, today);
+    startBotPhase(today);
   })()
     .catch((err) => console.error(`Scan failed: ${friendlyError(err)}`)) // not the raw error: SDK errors can carry request headers
     .finally(() => {
@@ -395,8 +474,20 @@ async function forceScan(): Promise<void> {
 }
 
 async function start() {
+  restoreSnapshot(); // yesterday's / the last scan, if it is from today: data on screen immediately
   // Listen immediately so the UI can show a "warming up" state.
-  app.listen(cfg.port, HOST, () => console.log(`SRD archive monitor API on http://localhost:${cfg.port} (listening on ${HOST})`));
+  // "localhost" resolves to ::1 first on many machines; if nothing listens there every new connection waits for that attempt to
+  // fail before falling back to 127.0.0.1 (hundreds of ms in a browser, 2 s in simple clients). So when the default
+  // loopback binding is used we listen on both loopback addresses. Still this machine only.
+  const hosts = HOST === '127.0.0.1' ? ['127.0.0.1', '::1'] : [HOST];
+  for (const h of hosts) {
+    const server = app.listen(cfg.port, h, () => console.log(`SRD archive monitor API on http://localhost:${cfg.port} (listening on ${h})`));
+    server.on('error', (err: NodeJS.ErrnoException) => {
+      if (h === '::1') return console.log(`[startup] IPv6 loopback not available (${err.code}); using 127.0.0.1 only`);
+      console.error(`Failed to listen on ${h}:${cfg.port}: ${err.message}`);
+      process.exit(1);
+    });
+  }
 
   // Resolve egress IP fast (doesn't block startup).
   void startEgressResolver();

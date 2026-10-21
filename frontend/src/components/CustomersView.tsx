@@ -5,7 +5,10 @@ import { Panel } from './panels';
 import MetricStrip from './MetricStrip';
 import { Donut } from './charts';
 import { ChartsSection } from './charts';
-import { CustomerCharts, type CustPick } from './viewCharts';
+import type { CustPick } from './viewCharts';
+import { lazyPreload } from '../lib/lazy';
+
+const CustomerCharts = lazyPreload(() => import('./viewCharts').then((m) => ({ default: m.CustomerCharts })));
 
 type SortKey = 'name' | 'env' | 'archive' | 'bots' | 'dbs';
 

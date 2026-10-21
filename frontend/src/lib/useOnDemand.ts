@@ -18,6 +18,8 @@ export function useOnDemand<T, S>(
   run: (scope: S) => Promise<T>,
   allScope: S,
   autoMs = 900_000,
+  /** Newest "checked at" time inside the data (ms), so results that are already older than the interval refresh soon. */
+  stamp?: (data: T) => number | null,
 ) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(false); // inventory listing
@@ -41,7 +43,10 @@ export function useOnDemand<T, S>(
       setLoading(true);
       setError(null);
       try {
-        setData(await list());
+        const d = await list();
+        setData(d);
+        const ts = stamp?.(d);
+        if (ts) setAnchor(Math.min(ts, Date.now())); // due = when these results were gathered + interval (soon, if that has passed)
       } catch (e) {
         loadedRef.current = false;
         setError((e as Error).message);

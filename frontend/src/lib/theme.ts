@@ -5,8 +5,9 @@ import { smooth } from './transition';
  * dark    AMOLED black            light   Purple admin
  * calm    soft slate-blue         aurora  deep indigo with violet + teal glow
  * emerald dark forest green       sunset  warm cream with orange accents
+ * macos   macOS-style light         macosdark  macOS-style dark (graphite)         macosamoled  macOS-style on pure black
  */
-export type Mode = 'dark' | 'light' | 'calm' | 'aurora' | 'emerald' | 'sunset';
+export type Mode = 'dark' | 'light' | 'calm' | 'aurora' | 'emerald' | 'sunset' | 'macos' | 'macosdark' | 'macosamoled' | 'macosglass' | 'macosglassdark' | 'macosglassamoled';
 
 export const THEMES: { id: Mode; label: string; blurb: string; dark: boolean; swatch: [string, string, string] }[] = [
   { id: 'dark', label: 'AMOLED', blurb: 'Pure black', dark: true, swatch: ['#000000', '#101011', '#60a5fa'] },
@@ -15,6 +16,12 @@ export const THEMES: { id: Mode; label: string; blurb: string; dark: boolean; sw
   { id: 'emerald', label: 'Emerald', blurb: 'Deep forest green', dark: true, swatch: ['#08130f', '#0f2019', '#34d399'] },
   { id: 'light', label: 'Light', blurb: 'Purple admin', dark: false, swatch: ['#f1edf7', '#ffffff', '#a05aff'] },
   { id: 'sunset', label: 'Sunset', blurb: 'Warm cream and orange', dark: false, swatch: ['#fbf3ea', '#ffffff', '#f97316'] },
+  { id: 'macos', label: 'macOS', blurb: 'Frosted glass, system blue', dark: false, swatch: ['#f5f5f7', '#ffffff', '#007aff'] },
+  { id: 'macosdark', label: 'macOS Dark', blurb: 'Graphite and system blue', dark: true, swatch: ['#1e1e1e', '#2c2c2e', '#0a84ff'] },
+  { id: 'macosamoled', label: 'macOS AMOLED', blurb: 'True black, system blue', dark: true, swatch: ['#000000', '#0a0a0a', '#0a84ff'] },
+  { id: 'macosglass', label: 'macOS Glass', blurb: 'Frosted glass, bright wallpaper', dark: false, swatch: ['#bcd4ff', '#ffffff', '#007aff'] },
+  { id: 'macosglassdark', label: 'macOS Glass Dark', blurb: 'Frosted glass, deep colour', dark: true, swatch: ['#241b63', '#4a4a7a', '#0a84ff'] },
+  { id: 'macosglassamoled', label: 'macOS Glass AMOLED', blurb: 'Frosted glass on true black', dark: true, swatch: ['#000000', '#2a2a30', '#0a84ff'] },
 ];
 
 export const MODE_LABEL = Object.fromEntries(THEMES.map((t) => [t.id, t.label])) as Record<Mode, string>;
@@ -35,9 +42,9 @@ function load(): Mode {
  */
 export function applyMode(mode: Mode): void {
   const root = document.documentElement;
-  const light = mode === 'light' || mode === 'sunset';
+  const light = mode === 'light' || mode === 'sunset' || mode === 'macos' || mode === 'macosglass';
   root.setAttribute('data-theme', light ? 'light' : 'dark');
-  if (mode === 'calm' || mode === 'aurora' || mode === 'emerald') root.setAttribute('data-tone', 'calm');
+  if (mode === 'calm' || mode === 'aurora' || mode === 'emerald' || mode === 'macosdark' || mode === 'macosglassdark') root.setAttribute('data-tone', 'calm');
   else root.removeAttribute('data-tone');
   if (mode === 'dark' || mode === 'light') root.removeAttribute('data-palette');
   else root.setAttribute('data-palette', mode);

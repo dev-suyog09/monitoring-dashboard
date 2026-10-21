@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BotsResponse, CheckResponse, CheckResult, DatabasesResponse, Status } from './types';
 import { fetchCheck, fetchHealth, restartBackend, fetchBots, checkBots, fetchDatabases, checkDatabases, fetchMe, firstName, type Me } from './lib/api';
 import { findNeedsIp } from './lib/needsIp';
@@ -17,17 +17,30 @@ import { Panel, StatPanel, CoverageChart, Gauge } from './components/panels';
 import WatchlistSearch, { type CustomerSuggestion } from './components/WatchlistSearch';
 import { matchesWatch, matchesFilter, envOf, customerOf, type EnvName } from './lib/watchMatch';
 import AccountTable from './components/AccountTable';
-import DetailDrawer from './components/DetailDrawer';
-import CustomerDetail from './components/CustomerDetail';
-import SettingsPanel from './components/SettingsPanel';
+import { lazyPreload, preloadLazyChunks, whenIdle } from './lib/lazy';
 import { everyLabel, getSettings, useApplySettings, useSettings } from './lib/settings';
 import { smooth } from './lib/transition';
-import NeedsIpPanel from './components/NeedsIpPanel';
-import BotsView from './components/BotsView';
-import DatabasesView, { type DbScope } from './components/DatabasesView';
+import type { DbScope } from './components/DatabasesView';
 import CustomersView from './components/CustomersView';
 import { buildCustomerRows } from './lib/customers';
 import type { BotScope } from './components/BotGroups';
+
+// Split out of the first download; fetched in idle time right after the page is up (see lib/lazy.ts).
+const DetailDrawer = lazyPreload(() => import('./components/DetailDrawer'));
+const CustomerDetail = lazyPreload(() => import('./components/CustomerDetail'));
+const SettingsPanel = lazyPreload(() => import('./components/SettingsPanel'));
+const NeedsIpPanel = lazyPreload(() => import('./components/NeedsIpPanel'));
+const BotsView = lazyPreload(() => import('./components/BotsView'));
+const DatabasesView = lazyPreload(() => import('./components/DatabasesView'));
+
+/** Shown for the instant a not-yet-loaded tab is being fetched. */
+const TabSkeleton = () => (
+  <div className="skeleton-page" role="status" aria-label="Loading">
+    <div className="skeleton" style={{ height: 96 }} />
+    <div className="skeleton" style={{ height: 44 }} />
+    <div className="skeleton" style={{ height: 260 }} />
+  </div>
+);
 
 const RESTART_WAIT_MS = 10 * 60_000;
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
@@ -38,6 +51,18 @@ const ALL_BOTS: BotScope = {};
 const ALL_DBS: DbScope = {};
 
 /** "Good morning" / "Good afternoon" / "Good evening" from the local time. */
+/** Builds a `stamp` function: the newest ISO time in a list, as milliseconds (null when nothing was ever checked). */
+function newestCheck<T>(times: (d: T) => (string | null)[]): (d: T) => number | null {
+  return (d) => {
+    let best = 0;
+    for (const t of times(d)) {
+      const ms = t ? Date.parse(t) : 0;
+      if (ms > best) best = ms;
+    }
+    return best || null;
+  };
+}
+
 function greeting(): string {
   const h = new Date().getHours();
   return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
@@ -116,8 +141,8 @@ export default function App() {
   // Environment filter shared by the Cloud Instances and Databases tabs.
   const [infraEnv, setInfraEnv] = useState<EnvName | 'all'>('all');
   // Bots + databases are on demand: nothing is fetched until their tab is opened / a check is run.
-  const bots = useOnDemand<BotsResponse, BotScope>(fetchBots, checkBots, ALL_BOTS, settings.autoMinutes * 60_000);
-  const dbs = useOnDemand<DatabasesResponse, DbScope>(fetchDatabases, checkDatabases, ALL_DBS, settings.autoMinutes * 60_000);
+  const bots = useOnDemand<BotsResponse, BotScope>(fetchBots, checkBots, ALL_BOTS, settings.autoMinutes * 60_000, newestCheck((d) => d.cloudServices.map((c) => c.checkedAt)));
+  const dbs = useOnDemand<DatabasesResponse, DbScope>(fetchDatabases, checkDatabases, ALL_DBS, settings.autoMinutes * 60_000, newestCheck((d) => d.databases.map((x) => x.checkedAt)));
   const { reset: resetBots } = bots;
   // Bell + pop-ups: raised when a checked instance newly goes Stopped / Unresponsive.
   const alerts = useAlerts(bots.data);
@@ -130,6 +155,7 @@ export default function App() {
     saveGroups(g);
   }, []);
 
+  const followUpRef = useRef<number | undefined>(undefined);
   const load = useCallback(async (force = false) => {
     if (restartingRef.current) return; // a backend restart is driving the data load
     abortRef.current?.abort();
@@ -141,6 +167,10 @@ export default function App() {
       const res = await fetchCheck(ac.signal, force);
       setData(res);
       setLastRefresh(new Date());
+      // A forced scan answers with the archive in ~10 s; the "anything stuck in bot storage?" part arrives about a minute
+      // later, so read the (cached) snapshot once more then.
+      window.clearTimeout(followUpRef.current);
+      if (force) followUpRef.current = window.setTimeout(() => void load(false), 80_000);
     } catch (e) {
       if ((e as Error).name !== 'AbortError') setError((e as Error).message);
     } finally {
@@ -226,6 +256,9 @@ export default function App() {
       window.removeEventListener('keydown', unlock);
     };
   }, []);
+
+  // Fetch the rest of the app (other tabs, panels, charts) when the browser has nothing better to do.
+  useEffect(() => whenIdle(preloadLazyChunks), []);
 
   // Ctrl/Cmd + K jumps to the search box.
   useEffect(() => {
@@ -711,24 +744,24 @@ export default function App() {
         )}
 
         {view === 'bots' && (
-          <BotsView
+          <Suspense fallback={<TabSkeleton />}><BotsView
             data={botsShown}
             loading={bots.loading}
             error={bots.error}
             checking={bots.checking}
             onCheck={bots.check}
             autoNext={bots.nextAuto}
-          />
+          /></Suspense>
         )}
         {view === 'dbs' && (
-          <DatabasesView
+          <Suspense fallback={<TabSkeleton />}><DatabasesView
             data={dbsShown}
             loading={dbs.loading}
             error={dbs.error}
             checking={dbs.checking}
             onCheck={dbs.check}
             autoNext={dbs.nextAuto}
-          />
+          /></Suspense>
         )}
 
         {view === 'archive' && (
@@ -899,10 +932,10 @@ export default function App() {
 
       <Toasts toasts={alerts.toasts} onClose={alerts.dismissToast} onOpen={() => goTo('bots')} />
 
-      {showNeeds && <NeedsIpPanel needs={needsIp} egressIp={data?.egressIp} onClose={() => setShowNeeds(false)} />}
+      {showNeeds && <Suspense fallback={null}><NeedsIpPanel needs={needsIp} egressIp={data?.egressIp} onClose={() => setShowNeeds(false)} /></Suspense>}
 
       {showSettings && (
-        <SettingsPanel
+        <Suspense fallback={null}><SettingsPanel
           settings={settings}
           mode={mode}
           setMode={setMode}
@@ -919,11 +952,11 @@ export default function App() {
           }}
           account={{ name: who, email: me?.email ?? null, egressIp: data?.egressIp, backendStarted }}
           onClose={() => setShowSettings(false)}
-        />
+        /></Suspense>
       )}
 
       {customerDetailRow && (
-        <CustomerDetail
+        <Suspense fallback={null}><CustomerDetail
           row={customerDetailRow}
           archiveWarming={!!data?.warming}
           accountName={customerDetail?.account ?? null}
@@ -937,11 +970,11 @@ export default function App() {
           onCheckBots={() => void bots.check(`sub:${customerDetailRow.subscriptionId}`, { subscriptionId: customerDetailRow.subscriptionId })}
           onCheckDbs={() => void dbs.check(`sub:${customerDetailRow.subscriptionId}`, { subscriptionId: customerDetailRow.subscriptionId })}
           onClose={() => setCustomerDetail(null)}
-        />
+        /></Suspense>
       )}
 
       {selectedAccount && (
-        <DetailDrawer account={selectedAccount} today={today} egressIp={data?.egressIp} onClose={() => setSelected(null)} />
+        <Suspense fallback={null}><DetailDrawer account={selectedAccount} today={today} egressIp={data?.egressIp} onClose={() => setSelected(null)} /></Suspense>
       )}
     </div>
   );
