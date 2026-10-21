@@ -8,19 +8,17 @@
     "build": "tsc -p tsconfig.json",
     "start": "node --use-system-ca dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/checker.test.ts"
+    "test": "node --import tsx --test src/checker.test.ts src/security.test.ts"
   },
   "dependencies": {
-    "@azure/arm-resourcegraph": "^4.2.1",
+    "@azure/arm-resourcegraph": "^5.0.0",
     "@azure/arm-storage": "^20.1.0",
     "@azure/identity": "^4.5.0",
     "@azure/storage-blob": "^12.26.0",
-    "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2"
   },
   "devDependencies": {
-    "@types/cors": "^2.8.17",
     "@types/express": "^4.17.21",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.2",

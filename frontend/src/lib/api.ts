@@ -1,7 +1,10 @@
 import type { BotsResponse, CheckResponse, DatabasesResponse, FilesResponse } from '../types';
 
+/** Every request carries this header: the backend refuses mutating requests without it, and a page on another site cannot add it (CSRF). */
+const SAM_HEADERS = { 'X-SAM-Request': '1' };
+
 async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
-  const res = await fetch(url, { signal });
+  const res = await fetch(url, { signal, headers: SAM_HEADERS });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error || `HTTP ${res.status}`);
@@ -38,7 +41,7 @@ export function fetchHealth(signal?: AbortSignal): Promise<Health> {
 
 /** Ask the backend to restart itself (via the scheduled task). Resolves once the restart is triggered. */
 export async function restartBackend(): Promise<void> {
-  const res = await fetch('/api/restart', { method: 'POST' });
+  const res = await fetch('/api/restart', { method: 'POST', headers: SAM_HEADERS });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error || `HTTP ${res.status}`);
@@ -63,7 +66,7 @@ export function fetchFiles(
 }
 
 async function postJson<T>(url: string): Promise<T> {
-  const res = await fetch(url, { method: 'POST' });
+  const res = await fetch(url, { method: 'POST', headers: SAM_HEADERS });
   if (!res.ok) {
     const body = (await res.json().catch(() => ({}))) as { error?: string };
     throw new Error(body.error || `HTTP ${res.status}`);

@@ -4,12 +4,12 @@ import fs from 'node:fs';
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import express from 'express';
-import cors from 'cors';
 import { loadConfig } from './config.js';
 import { buildAccountClients, mgmtCredential } from './azure.js';
 import { checkAccount, todayStr, setEgressIp, friendlyError } from './checker.js';
 import { listLatestFiles } from './files.js';
 import { InfraStore } from './infra.js';
+import { csrfGuard, hostGuard, rateLimiter, securityHeaders } from './security.js';
 import type { AccountClient, CheckResponse, FilesResponse } from './types.js';
 
 const cfg = loadConfig();
@@ -106,7 +106,26 @@ async function startEgressResolver(): Promise<void> {
 }
 
 const app = express();
-app.use(cors());
+app.disable('x-powered-by');
+
+// ---- Security guards (see security.ts) ----
+// No CORS on purpose: the dashboard is served by this same process, so no other website may read these answers.
+// Bind to this machine only unless HOST says otherwise, and only answer to our own host names (blocks DNS rebinding).
+const HOST = process.env.HOST ?? '127.0.0.1';
+const ALLOWED_HOSTS = (process.env.ALLOWED_HOSTS ?? '').split(',').map((s) => s.trim()).filter(Boolean);
+app.use(hostGuard(ALLOWED_HOSTS));
+app.use(securityHeaders());
+const isPost = (req: express.Request) => req.method === 'POST';
+app.use(
+  '/api',
+  rateLimiter([
+    { match: (req) => isPost(req) && req.originalUrl.startsWith('/api/restart'), windowMs: 60_000, max: 3 },
+    { match: (req) => isPost(req) && /\/api\/[a-z]+\/check/.test(req.originalUrl), windowMs: 60_000, max: 40 },
+    { match: (req) => req.originalUrl.startsWith('/api/files'), windowMs: 60_000, max: 300 },
+    { match: () => true, windowMs: 60_000, max: 900 },
+  ]),
+);
+app.use('/api', csrfGuard(ALLOWED_HOSTS));
 
 const STARTED_AT = new Date().toISOString();
 
@@ -309,10 +328,17 @@ app.get('/api/files', async (req, res) => {
 // Serve the built frontend if present, so one process serves API + UI.
 const frontendDist = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../frontend/dist');
 if (fs.existsSync(frontendDist)) {
-  app.use(express.static(frontendDist));
-  // SPA fallback for any non-/api route.
-  app.get(/^(?!\/api).*/, (_req, res) => res.sendFile(path.join(frontendDist, 'index.html')));
+  app.use(express.static(frontendDist, { dotfiles: 'ignore', index: false }));
+  app.get('/', (_req, res) => res.sendFile(path.join(frontendDist, 'index.html')));
+  // SPA fallback for page routes only (no file extension, not /api): a missing file such as a source map is a real 404.
+  app.get(/^(?!\/api)[^.]*$/, (_req, res) => res.sendFile(path.join(frontendDist, 'index.html')));
 }
+
+// Anything unexpected: a generic answer (details stay in the server log), never a stack trace.
+app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  console.error(`Request failed: ${err instanceof Error ? err.message : String(err)}`);
+  res.status(500).json({ error: 'Something went wrong on the server.' });
+});
 
 /** Bot-storage options for a scan; the cache lets accounts that share a bot account list it once. */
 function botScan() {
@@ -349,7 +375,7 @@ function scanOnce(): Promise<void> {
       dateOverride: !!cfg.checkDate,
     };
   })()
-    .catch((err) => console.error('Scan failed:', err))
+    .catch((err) => console.error(`Scan failed: ${friendlyError(err)}`)) // not the raw error: SDK errors can carry request headers
     .finally(() => {
       currentScan = null;
     });
@@ -370,7 +396,7 @@ async function forceScan(): Promise<void> {
 
 async function start() {
   // Listen immediately so the UI can show a "warming up" state.
-  app.listen(cfg.port, () => console.log(`SRD archive monitor API on http://localhost:${cfg.port}`));
+  app.listen(cfg.port, HOST, () => console.log(`SRD archive monitor API on http://localhost:${cfg.port} (listening on ${HOST})`));
 
   // Resolve egress IP fast (doesn't block startup).
   void startEgressResolver();
@@ -392,6 +418,6 @@ async function start() {
 }
 
 start().catch((err) => {
-  console.error('Failed to start:', err);
+  console.error(`Failed to start: ${err instanceof Error ? err.message : String(err)}`);
   process.exit(1);
 });

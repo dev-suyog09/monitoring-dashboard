@@ -6,6 +6,7 @@ import { ResourceGraphClient } from '@azure/arm-resourcegraph';
 import type { AppConfig } from './config.js';
 import type { AccountClient, BotTarget } from './types.js';
 import { friendlyError } from './checker.js';
+import { kqlString, safeNameFragment } from './security.js';
 
 /**
  * Management-plane credential (resolving accounts + reading keys). Locally this
@@ -74,7 +75,7 @@ async function discoverLocations(cred: TokenCredential, cfg: AppConfig): Promise
   const graph = new ResourceGraphClient(cred);
   const query =
     `resources ` +
-    `| where type =~ 'microsoft.storage/storageAccounts' and name endswith '${cfg.discoverSuffix}' ` +
+    `| where type =~ 'microsoft.storage/storageAccounts' and name endswith ${kqlString(safeNameFragment(cfg.discoverSuffix, 'DISCOVER_SUFFIX'))} ` +
     `| project name, subscriptionId, resourceGroup`;
   const rows = await graphAll(graph, query, cfg.scopeSubscriptions);
   return rows
@@ -98,7 +99,7 @@ async function discoverBotLocations(cred: TokenCredential, cfg: AppConfig): Prom
   const graph = new ResourceGraphClient(cred);
   const query =
     `resources ` +
-    `| where type =~ 'microsoft.storage/storageAccounts' and name startswith '${cfg.botPrefix}' ` +
+    `| where type =~ 'microsoft.storage/storageAccounts' and name startswith ${kqlString(safeNameFragment(cfg.botPrefix, 'BOT_ACCOUNT_PREFIX'))} ` +
     `| project name, subscriptionId, resourceGroup`;
   const rows = await graphAll(graph, query, cfg.scopeSubscriptions);
   return rows.map((r) => ({ name: r.name!, subscriptionId: r.subscriptionId, resourceGroup: r.resourceGroup }));
@@ -117,7 +118,7 @@ export function groupKey(resourceGroup?: string): string | null {
 /** Resolve subscription + resource group for an explicit list of account names. */
 async function resolveNamedLocations(cred: TokenCredential, names: string[]): Promise<Location[]> {
   const graph = new ResourceGraphClient(cred);
-  const list = names.map((n) => `'${n}'`).join(',');
+  const list = names.map((n) => kqlString(n)).join(',');
   const query =
     `resources ` +
     `| where type =~ 'microsoft.storage/storageAccounts' and name in (${list}) ` +

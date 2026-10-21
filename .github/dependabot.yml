@@ -1,0 +1,36 @@
+# Dependabot: watches the npm packages of the backend and the frontend and opens pull requests to update them.
+# It only reads this file from the repository's default branch (main). Security alerts and security-fix PRs are switched on
+# separately in GitHub: Settings -> Code security (Dependabot alerts, Dependabot security updates).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(backend)"
+    groups:
+      # one pull request for all minor / patch updates instead of a stream of small ones
+      backend-minor-and-patch:
+        update-types: [minor, patch]
+      # Azure SDK packages move together; keep them in one reviewable change
+      azure-sdk:
+        patterns: ["@azure/*"]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Asia/Kolkata
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(frontend)"
+    groups:
+      frontend-minor-and-patch:
+        update-types: [minor, patch]

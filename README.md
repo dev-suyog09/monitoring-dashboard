@@ -65,7 +65,8 @@ Database thresholds: storage **watch above 60 %** and **critical above 75 %** (f
 - **Identity:** locally your `az login` session; in a deployment set `USE_MANAGED_IDENTITY=true`.
 - **Nothing sensitive in the repo.** `.env` is gitignored; only `.env.example` is tracked.
 - `STORAGE_CONN_1..N` connection strings still work as a fallback but store keys on disk — discouraged.
-- The restart endpoint only accepts requests from the local dashboard (it rejects other origins).
+- **Local only by default:** the server listens on `127.0.0.1`, answers only to `localhost` names (blocks DNS rebinding), sends **no CORS** headers, requires a CSRF header on every POST, rate-limits the API and sends a strict Content-Security-Policy. See [SECURITY.md](SECURITY.md) for the full checklist, what applies to this tool and what does not.
+- The restart endpoint is POST-only, CSRF-protected, limited to 3 per minute and only accepts requests from the local dashboard.
 
 > If a key rotates, restart the backend so it re-reads the new key.
 

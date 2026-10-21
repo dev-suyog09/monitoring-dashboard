@@ -6,12 +6,8 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <title>Godzilla Health Monitor</title>
     <meta name="color-scheme" content="dark light" />
-    <!-- Apply the saved theme before first paint so dark mode never flashes light. -->
-    <script>
-      try {
-        document.documentElement.setAttribute('data-theme', localStorage.getItem('sam.theme') === 'light' ? 'light' : 'dark');
-      } catch (e) {}
-    </script>
+    <!-- Apply the saved theme before first paint so the page never flashes the wrong colours (external file: the CSP forbids inline scripts). -->
+    <script src="/boot.js"></script>
     <style>html, body { background: #000; } html[data-theme='light'], html[data-theme='light'] body { background: #f1edf7; }</style>
   </head>
   <body>

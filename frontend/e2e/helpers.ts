@@ -8,10 +8,10 @@ export async function warmBackend(page: Page) {
   const get = async (url: string) => (await page.request.get(url, { timeout: 60_000 })).json();
   const bots = await get('/api/bots');
   if (!bots.cloudServices.some((c: { checkedAt: string | null }) => c.checkedAt))
-    await page.request.post('/api/bots/check', { timeout: 180_000 });
+    await page.request.post('/api/bots/check', { timeout: 180_000, headers: { 'X-SAM-Request': '1' } });
   const dbs = await get('/api/databases');
   if (!dbs.databases.some((d: { checkedAt: string | null }) => d.checkedAt))
-    await page.request.post('/api/databases/check', { timeout: 300_000 });
+    await page.request.post('/api/databases/check', { timeout: 300_000, headers: { 'X-SAM-Request': '1' } });
 }
 
 /** Fresh browser state for each test (settings, theme, alerts, groups) unless the test reloads on purpose. */

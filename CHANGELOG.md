@@ -4,6 +4,26 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-21 · Security hardening (branch `Dev-Suyog`)
+
+The older version of the dashboard is kept on the `Legacy-Monitoring-Version` branch (the state of `main` before this release).
+
+### Security
+- **Local only by default:** the server listens on `127.0.0.1` and answers only to `localhost` names (blocks DNS rebinding);
+  `HOST` / `ALLOWED_HOSTS` opt in to sharing it.
+- **No CORS** (the dashboard is served by the same process); **CSRF protection** on every POST (custom header, same-origin,
+  no cross-site fetches); **rate limiting** (restart 3/min, checks 40/min, files 300/min, API 900/min).
+- **Strict Content-Security-Policy** (no inline script; the theme preload moved to `/boot.js`), plus no-framing, no-sniffing,
+  no-referrer and no-store headers on API answers; unknown file-like paths (e.g. source maps) return 404.
+- Resource Graph queries escape configured values and validate name fragments; raw SDK errors are no longer logged.
+- **Dependencies:** `npm audit` is at 0 for backend (was 1 critical + 7 moderate; `@azure/arm-resourcegraph` 5.x) and frontend; the
+  unused `cors` package was removed.
+- `SECURITY.md` (checklist: what applies to this tool and what does not), Dependabot config for weekly dependency updates.
+
+### Added
+- `security.test.ts` (backend) and `security.spec.ts` (browser, 16 tests): CORS, CSRF, Host guard, injection and traversal
+  inputs, CSP, XSS rendering, source maps, secrets in responses and storage, rate limiting.
+
 ## 2026-10-21 · Side column on Cloud Instances and Databases (branch `Dev-Suyog`)
 
 ### Changed
