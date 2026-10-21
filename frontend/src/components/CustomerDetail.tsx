@@ -104,6 +104,7 @@ function DbCard({ d, issues }: { d: InfraDatabase; issues: string[] }) {
  */
 export default function CustomerDetail({
   row,
+  archiveWarming = false,
   accountName,
   onSwitch,
   today,
@@ -117,6 +118,7 @@ export default function CustomerDetail({
   onClose,
 }: {
   row: CustomerRow;
+  archiveWarming?: boolean;
   /** The SRD account to show (the first one when null). */
   accountName: string | null;
   onSwitch: (accountName: string) => void;
@@ -154,7 +156,7 @@ export default function CustomerDetail({
   const dbIssueCount = issueMap.filter((x, i) => databases[i]!.checkedAt && x.length > 0).length;
 
   return (
-    <SidePanel title={shortName(row.name)} subtitle={account ? `${account.accountName} · ${row.name}` : row.name} onClose={onClose} width="clamp(560px, 50vw, 1100px)">
+    <SidePanel title={`${shortName(row.name)}${row.env !== 'OTHER' ? ` · ${row.env}` : ''}`} subtitle={account ? `${account.accountName} · ${row.name}` : row.name} onClose={onClose} width="clamp(560px, 50vw, 1100px)">
       <div className="cd-head">
         {account && <StatusBadge status={account.status} />}
         <EnvBadge env={env} />
@@ -171,10 +173,10 @@ export default function CustomerDetail({
 
       <div className="cd-kpis">
         <Kpi
-          label="Archive"
-          value={!account || accErr ? '—' : `${cov}%`}
-          sub={!account ? 'no SRD account' : accErr ? 'could not read' : `${account.capturesWithToday}/${account.capturesTotal} folders`}
-          scope={!account ? 'st-idle' : accErr ? 'st-err' : cov === 100 ? 'st-ok' : 'st-warn'}
+          label="Archive folders"
+          value={!account || accErr ? '—' : `${account.capturesWithToday}/${account.capturesTotal}`}
+          sub={!account ? (archiveWarming ? 'archive scan warming up' : 'no SRD account') : accErr ? 'could not read' : account.capturesWithToday === account.capturesTotal ? 'all have today' : `${account.capturesTotal - account.capturesWithToday} empty today`}
+          scope={!account ? 'st-idle' : accErr ? 'st-err' : account.capturesWithToday === account.capturesTotal ? 'st-ok' : account.capturesWithToday === 0 ? 'st-err' : 'st-warn'}
         />
         <Kpi
           label="Bot storage"
@@ -212,6 +214,12 @@ export default function CustomerDetail({
           <div className="track">
             <span style={{ width: `${cov}%` }} />
           </div>
+          {account.status === 'healthy' && account.capturesWithToday < account.capturesTotal && (
+            <p className="cd-note">
+              The account counts as <b>Healthy</b> because at least one capture folder has today&apos;s data, but{' '}
+              <b>{account.capturesTotal - account.capturesWithToday}</b> of {account.capturesTotal} folders have nothing for today yet.
+            </p>
+          )}
           <div className="cd-folders">
             {account.captureFolders.length === 0 && <p className="panel-empty">No capture folders found.</p>}
             {account.captureFolders.map((cf) => (

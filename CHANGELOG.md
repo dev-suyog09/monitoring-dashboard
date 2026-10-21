@@ -4,6 +4,25 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## 2026-10-21 · Same story on every tab (branch `Dev-Suyog`)
+
+### Fixed
+- **Customers vs Archive tab disagreement** (reported for CAC):
+  - A customer that exists in two environments (CAC in UAT and PRD) is two rows on the Customers tab; both were labelled
+    just "CAC". Every row, attention item and details title now carries an environment tag.
+  - An account counts as Healthy when at least one capture folder has today's data, yet the row said "4/4 today" and the
+    details panel showed an amber percentage next to a "Healthy" badge. Rows now add a `⚠ N folders empty` pill, the
+    details tile reads `x/y folders`, and a note explains why the account is still Healthy.
+  - While the backend re-scans after its 15-minute restart, the Customers tab showed "—", "0 accts" and "all archived".
+    It now says the archive scan is warming up (banner, `scanning…` chips, "scanning archive…" on the metric card).
+- Auto re-check: the archive and bot-storage scan is now a live re-scan on the Settings interval (it used to re-read the
+  backend's cached copy), alongside the bot and database re-checks.
+
+### Added
+- `consistency.spec.ts`: end-to-end tests that compare every Customers row, the details panel and the Archive tab with
+  what the backend reports, so the tabs cannot silently drift apart again.
+- `refresh.spec.ts`: tests for the automatic re-check on the chosen interval.
+
 ## 2026-10-21 · New look, settings and end-to-end tests (branch `Dev-Suyog`)
 
 ### Added

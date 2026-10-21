@@ -10,7 +10,12 @@ export interface CustomerRow {
   name: string;
   env: EnvName;
   accounts: CheckResult[];
-  archive: { healthy: number; monitorable: number; errors: number };
+  /**
+   * healthy / monitorable are ACCOUNT counts, exactly as on the Archive tab (healthy = at least one capture folder has
+   * today's data). partialFolders counts the capture folders still empty today inside accounts that are healthy, so a
+   * "healthy" customer with folders missing is never shown as fully complete.
+   */
+  archive: { healthy: number; monitorable: number; errors: number; folders: number; foldersToday: number; partialFolders: number };
   bots: {
     services: number;
     checked: number;
@@ -61,7 +66,7 @@ export function buildCustomerRows(
         name: name || 'Unknown subscription',
         env: 'OTHER',
         accounts: [],
-        archive: { healthy: 0, monitorable: 0, errors: 0 },
+        archive: { healthy: 0, monitorable: 0, errors: 0, folders: 0, foldersToday: 0, partialFolders: 0 },
         bots: { services: 0, checked: 0, instances: 0, started: 0, down: 0, starting: 0, unreadable: 0, checkedAt: null },
         dbs: { total: 0, checked: 0, issues: 0, issueText: [], checkedAt: null },
       };
@@ -74,7 +79,12 @@ export function buildCustomerRows(
     const r = get(a.subscriptionId, a.subscription);
     r.accounts.push(a);
     if (a.status !== 'no_data') r.archive.monitorable++;
-    if (a.status === 'healthy') r.archive.healthy++;
+    if (a.status === 'healthy') {
+      r.archive.healthy++;
+      r.archive.partialFolders += Math.max(0, a.capturesTotal - a.capturesWithToday);
+    }
+    r.archive.folders += a.capturesTotal;
+    r.archive.foldersToday += a.capturesWithToday;
     if (a.status === 'error') r.archive.errors++;
   }
 

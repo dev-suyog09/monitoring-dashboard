@@ -95,8 +95,11 @@ export default function CustomersView({
   onCheckBots,
   onCheckDbs,
   onOpenCustomer,
+  archiveWarming = false,
 }: {
   rows: CustomerRow[];
+  /** The backend is still running its first archive scan (it restarts every 15 min): no archive numbers exist yet. */
+  archiveWarming?: boolean;
   loading: boolean;
   botsChecking: string | null;
   dbsChecking: string | null;
@@ -130,12 +133,16 @@ export default function CustomersView({
 
   const kpi = useMemo(() => {
     let archiveOk = 0;
+    let partialCustomers = 0;
     let botsDown = 0;
     let botsChecked = 0;
     let dbIssues = 0;
     let dbChecked = 0;
     for (const r of rows) {
-      if (r.archive.monitorable > 0 && r.archive.healthy === r.archive.monitorable) archiveOk++;
+      if (r.archive.monitorable > 0 && r.archive.healthy === r.archive.monitorable) {
+        archiveOk++;
+        if (r.archive.partialFolders > 0) partialCustomers++;
+      }
       botsDown += r.bots.down;
       botsChecked += r.bots.checked;
       dbIssues += r.dbs.issues;
@@ -149,7 +156,7 @@ export default function CustomersView({
       up += r.bots.started;
       instances += r.bots.instances;
     }
-    return { archiveOk, botsDown, botsChecked, dbIssues, dbChecked, withSrd, up, instances };
+    return { archiveOk, partialCustomers, botsDown, botsChecked, dbIssues, dbChecked, withSrd, up, instances };
   }, [rows]);
 
   /** Customers ranked by how much is wrong, each with the pills explaining why. */
@@ -246,16 +253,26 @@ export default function CustomersView({
   return (
     <>
 
+    {archiveWarming && (
+      <div className="banner banner-warm">
+        ⏳ The archive scan is warming up (the backend restarts every 15 minutes and re-scans all locations). Archive numbers on
+        this tab appear when it finishes, usually within 1–4 minutes — nothing here is "missing" yet.
+      </div>
+    )}
     <MetricStrip
       metrics={[
-        { key: 'all', label: 'Customers', value: rows.length, sub: `${kpi.withSrd} with an SRD account`, tone: 'neutral', active: pick === null, onClick: () => setPick(null) },
+        { key: 'all', label: 'Customers', value: rows.length, sub: archiveWarming ? 'archive scan warming up' : `${kpi.withSrd} with an SRD account`, tone: 'neutral', active: pick === null, onClick: () => setPick(null) },
         {
           key: 'arch',
           label: 'Archive complete',
-          value: kpi.archiveOk,
+          value: archiveWarming ? '…' : kpi.archiveOk,
           ring: kpi.withSrd ? (kpi.archiveOk / kpi.withSrd) * 100 : 0,
-          sub: `${kpi.withSrd - kpi.archiveOk} still missing today`,
-          tone: kpi.archiveOk === kpi.withSrd ? 'ok' : 'warn',
+          sub: archiveWarming
+            ? 'scanning archive…'
+            : kpi.withSrd === 0
+              ? 'no archive data'
+              : kpi.withSrd - kpi.archiveOk > 0 ? `${kpi.withSrd - kpi.archiveOk} still missing today` : kpi.partialCustomers > 0 ? `${kpi.partialCustomers} with folders empty` : 'all archived',
+          tone: archiveWarming || kpi.withSrd === 0 ? 'idle' : kpi.archiveOk === kpi.withSrd ? 'ok' : 'warn',
           active: pick === 'arch-ok',
           onClick: () => setPick((c) => (c === 'arch-ok' ? null : 'arch-ok')),
         },
@@ -327,8 +344,9 @@ export default function CustomersView({
                 {sorted.map((r) => {
                   const isOpen = open.has(r.key);
                   const a = r.archive;
-                  const archiveChip =
-                    r.accounts.length === 0
+                  const archiveChip = archiveWarming
+                    ? { text: 'scanning…', scope: 'st-idle' }
+                    : r.accounts.length === 0
                       ? null
                       : a.monitorable === 0
                         ? { text: 'no SRD', scope: 'st-idle' }
@@ -351,7 +369,10 @@ export default function CustomersView({
                             <span className="cust-caret">{isOpen ? '▾' : '▸'}</span>
                             <span className="cust-av">{shortName(r.name).slice(0, 2).toUpperCase()}</span>
                             <span className="cust-txt">
-                              <b className="cust-short">{shortName(r.name)}</b>
+                              <b className="cust-short">
+                              {shortName(r.name)}
+                              {r.env !== 'OTHER' && <span className={`cust-envtag en-${r.env}`}>{r.env}</span>}
+                            </b>
                               <span className="cust-full mono" title={r.name}>
                                 {r.name} · {r.accounts.length} acct{r.accounts.length === 1 ? '' : 's'}
                               </span>
@@ -366,6 +387,14 @@ export default function CustomersView({
                                 <span className="dot" />
                                 {archiveChip.text}
                               </span>
+                              {a.partialFolders > 0 && (
+                                <span
+                                  className="chip st-warn chip-mini"
+                                  title={`These accounts are Healthy (at least one capture folder has today's data), but ${a.partialFolders} capture folder${a.partialFolders === 1 ? ' has' : 's have'} nothing for today yet (${a.foldersToday}/${a.folders} folders have today).`}
+                                >
+                                  ⚠ {a.partialFolders} folder{a.partialFolders === 1 ? '' : 's'} empty
+                                </span>
+                              )}
                             </span>
                           ) : (
                             <span style={{ color: 'var(--text-3)' }}>—</span>
@@ -459,7 +488,10 @@ export default function CustomersView({
                 <button type="button" className="att-item" onClick={() => onOpenCustomer(a.row)}>
                   <span className="cust-av">{shortName(a.row.name).slice(0, 2).toUpperCase()}</span>
                   <span className="att-text">
-                    <b>{shortName(a.row.name)}</b>
+                    <b>
+                      {shortName(a.row.name)}
+                      {a.row.env !== 'OTHER' && <span className={`cust-envtag en-${a.row.env}`}>{a.row.env}</span>}
+                    </b>
                     <span className="att-sub mono">{a.row.name}</span>
                   </span>
                   <span className="att-pills">

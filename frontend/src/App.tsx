@@ -199,10 +199,12 @@ export default function App() {
     return () => abortRef.current?.abort();
   }, [load]);
 
-  // the archive scan repeats on the same schedule as the bot / database re-checks (Settings → Auto re-check)
+  // The archive / bot-storage scan repeats on the same schedule as the bot and database re-checks (Settings → Auto
+  // re-check). It forces a live scan: a plain load would only re-read the backend's cached snapshot, which the backend
+  // refreshes on its own (15 min) schedule, so a shorter interval would otherwise show the same data again.
   useEffect(() => {
     if (settings.autoMinutes <= 0) return;
-    const id = setInterval(() => load(), settings.autoMinutes * 60_000);
+    const id = setInterval(() => load(true), settings.autoMinutes * 60_000);
     return () => clearInterval(id);
   }, [load, settings.autoMinutes]);
 
@@ -685,6 +687,7 @@ export default function App() {
         {view === 'customers' && (
           <CustomersView
             rows={customerRows}
+            archiveWarming={!!data?.warming}
             loading={bots.loading || dbs.loading}
             botsChecking={bots.checking}
             dbsChecking={dbs.checking}
@@ -909,6 +912,7 @@ export default function App() {
       {customerDetailRow && (
         <CustomerDetail
           row={customerDetailRow}
+          archiveWarming={!!data?.warming}
           accountName={customerDetail?.account ?? null}
           onSwitch={(account) => setCustomerDetail({ key: customerDetailRow.key, account })}
           today={today}

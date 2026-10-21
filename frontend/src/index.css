@@ -1566,3 +1566,12 @@ input:focus-visible { outline-offset: 1px; }
 }
 
 .skeleton-page { display: flex; flex-direction: column; gap: 14px; }
+
+/* env tag beside a customer name, so two customers with the same short name (e.g. CAC in UAT and PRD) never look alike */
+.cust-envtag { display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 6px; font-size: 9.5px; font-weight: 800; letter-spacing: 0.06em; vertical-align: 2px; background: color-mix(in srgb, var(--text-1) 9%, transparent); color: var(--text-2); }
+.cust-envtag.en-PRD { background: color-mix(in srgb, var(--err) 16%, transparent); color: var(--err-fg, var(--err)); }
+.cust-envtag.en-UAT { background: color-mix(in srgb, var(--accent) 18%, transparent); color: var(--accent); }
+.cust-envtag.en-DEV { background: color-mix(in srgb, var(--ok) 16%, transparent); color: var(--ok-fg, var(--ok)); }
+.chip-mini { font-size: 10.5px !important; padding: 2px 8px !important; }
+.prog-cell { flex-wrap: wrap; }
+.cd-note { margin: 8px 0 0; padding: 8px 12px; border-radius: 12px; font-size: 12px; line-height: 1.45; color: var(--text-2); background: color-mix(in srgb, var(--warn) 12%, transparent); }

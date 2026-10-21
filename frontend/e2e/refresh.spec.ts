@@ -16,12 +16,26 @@ async function countChecks(page: Page) {
 }
 
 test.describe('Auto re-check follows the interval chosen in Settings', () => {
+  test.afterEach(async ({ page }) => {
+    await page.unrouteAll({ behavior: 'ignoreErrors' }); // stop the fake responders before the page closes
+  });
+
   // 0.05 minutes = 3 seconds, so the test does not have to wait minutes (the Settings panel offers 5 minutes and up)
   test('bots and databases re-check on their own, repeatedly, without anyone pressing Check', async ({ page }) => {
     const calls = await countChecks(page);
     await start(page, { settings: { autoMinutes: 0.05 } });
     await expect.poll(() => calls.bots, { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
     await expect.poll(() => calls.dbs, { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
+  });
+
+  test('the archive and bot-storage scan is a live re-scan on the same schedule (not just a re-read of the cache)', async ({ page }) => {
+    let fresh = 0;
+    await page.route('**/api/check**', async (route) => {
+      if (route.request().url().includes('fresh=1')) fresh++;
+      await route.fulfill({ json: await (await page.request.get('/api/check')).json() });
+    });
+    await start(page, { settings: { autoMinutes: 0.05 } });
+    await expect.poll(() => fresh, { timeout: 30_000 }).toBeGreaterThanOrEqual(2);
   });
 
   test('it also runs while you are looking at a different tab', async ({ page }) => {
