@@ -496,7 +496,7 @@ export default function App() {
         onMouseLeave={peekOff}
         aria-label="Sections"
       >
-        <span className="brand-mark side-logo" title="Godzilla Health Monitor · NTRX AppOps" aria-hidden>
+        <span className="brand-mark side-logo" title="NTRX Health Check · AppOps" aria-hidden>
           <svg width="24" height="24" viewBox="0 0 64 64">
             <path d="M6 38 L18 38 L24 22 L31 48 L38 14 L45 42 L50 38 L58 38" fill="none" stroke="#fff" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -909,7 +909,7 @@ export default function App() {
           </>
         )}
         <footer className="dash-foot">
-          Godzilla Health Monitor · NTRX AppOps · bots and databases re-check {everyLabel(settings.autoMinutes)} while this page is open
+          NTRX Health Check · AppOps · bots and databases re-check {everyLabel(settings.autoMinutes)} while this page is open
         </footer>
       </div>
 
