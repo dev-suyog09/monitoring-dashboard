@@ -15,7 +15,7 @@ import { coverageSeries, isMonitorable } from './lib/history';
 import { loadGroups, saveGroups, type WatchGroup } from './lib/watchlist';
 import { Panel, StatPanel, CoverageChart, Gauge } from './components/panels';
 import WatchlistSearch, { type CustomerSuggestion } from './components/WatchlistSearch';
-import { matchesWatch, matchesFilter, envOf, customerOf, type EnvName } from './lib/watchMatch';
+import { matchesWatch, matchesFilter, envOf, customerEnvOf, type EnvName } from './lib/watchMatch';
 import AccountTable from './components/AccountTable';
 import { lazyPreload, preloadLazyChunks, whenIdle } from './lib/lazy';
 import { everyLabel, getSettings, useApplySettings, useSettings } from './lib/settings';
@@ -355,21 +355,23 @@ export default function App() {
 
   // Every customer we know about (from accounts, bots and databases), for the search suggestions.
   const suggestions = useMemo<CustomerSuggestion[]>(() => {
-    const m = new Map<string, { srd: number; bots: number; dbs: Set<string>; inGroup: boolean }>();
-    const at = (name: string) => {
-      const code = customerOf(name);
+    const m = new Map<string, { srd: number; bots: number; dbs: Set<string>; inGroup: boolean; subs: Set<string> }>();
+    const at = (name: string, subscription?: string) => {
+      const code = customerEnvOf(name);
       let e = m.get(code);
-      if (!e) m.set(code, (e = { srd: 0, bots: 0, dbs: new Set(), inGroup: false }));
+      if (!e) m.set(code, (e = { srd: 0, bots: 0, dbs: new Set(), inGroup: false, subs: new Set() }));
+      if (subscription) e.subs.add(subscription);
       if (terms.length > 0 && matchesWatch(name, terms)) e.inGroup = true;
       return e;
     };
-    for (const r of results) at(r.accountName).srd++;
-    for (const c of bots.data?.cloudServices ?? []) at(c.name).bots++;
-    for (const d of dbs.data?.databases ?? []) at(d.server).dbs.add(d.server);
+    for (const r of results) at(r.accountName, r.subscription).srd++;
+    for (const c of bots.data?.cloudServices ?? []) at(c.name, c.subscription).bots++;
+    for (const d of dbs.data?.databases ?? []) at(d.server, d.subscription).dbs.add(d.server);
     return [...m.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([code, e]) => ({
         code,
+        subs: [...e.subs].sort(),
         inFilter: terms.length === 0 || e.inGroup,
         detail: [
           e.srd ? `${e.srd} SRD` : '',

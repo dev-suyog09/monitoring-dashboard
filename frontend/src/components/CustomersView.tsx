@@ -328,7 +328,6 @@ export default function CustomersView({
                             <span className="cust-txt">
                               <b className="cust-short" title={r.name}>
                                 {r.name}
-                                {r.env !== 'OTHER' && <span className={`cust-envtag en-${r.env}`}>{r.env}</span>}
                               </b>
                               <span className="cust-full">
                                 {r.accounts.length} SRD account{r.accounts.length === 1 ? '' : 's'}
