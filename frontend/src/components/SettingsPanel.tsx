@@ -155,9 +155,6 @@ export default function SettingsPanel({
             <option value={60}>Every hour</option>
           </select>
         </Row>
-        <Row label="Open charts automatically" hint="Show the charts section on every tab without clicking">
-          <Toggle on={settings.autoCharts} onChange={(v) => set({ autoCharts: v })} label="Open charts automatically" />
-        </Row>
       </Group>
 
       <Group icon="🔔" title="Notifications" hint="Alerts fire when an instance leaves the Started state">

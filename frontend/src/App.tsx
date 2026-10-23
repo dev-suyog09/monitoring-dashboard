@@ -90,7 +90,6 @@ export default function App() {
   const [draft, setDraft] = useState('');
   const [groups, setGroups] = useState<WatchGroup[]>(() => loadGroups());
   const [selected, setSelected] = useState<string | null>(null);
-  const [customerDetail, setCustomerDetail] = useState<{ key: string; account: string | null } | null>(null); // customer opened from the Customers tab
   const { mode, next, setMode, toggleMode } = useTheme();
   const settings = useSettings();
   useApplySettings(settings);
@@ -474,7 +473,6 @@ export default function App() {
     }
   }, [watched, filter, atRiskOnly, atRiskList]);
 
-  const customerDetailRow = customerDetail ? (customerRows.find((r) => r.key === customerDetail.key) ?? null) : null;
   const selectedAccount: CheckResult | null = selected
     ? (results.find((r) => r.accountName === selected) ?? null)
     : null;
@@ -739,7 +737,24 @@ export default function App() {
             dbsChecking={dbs.checking}
             onCheckBots={(id) => void bots.check(`sub:${id}`, { subscriptionId: id })}
             onCheckDbs={(id) => void dbs.check(`sub:${id}`, { subscriptionId: id })}
-            onOpenCustomer={(r, account) => setCustomerDetail({ key: r.key, account: account ?? null })}
+            renderDetail={(r, account, switchTo) => (
+              <Suspense fallback={<TabSkeleton />}>
+                <CustomerDetail
+                  row={r}
+                  archiveWarming={!!data?.warming}
+                  accountName={account}
+                  onSwitch={switchTo}
+                  today={today}
+                  bots={bots.data}
+                  dbs={dbs.data}
+                  botsBusy={bots.checking === `sub:${r.subscriptionId}`}
+                  dbsBusy={dbs.checking === `sub:${r.subscriptionId}`}
+                  checkDisabled={{ bots: bots.checking !== null, dbs: dbs.checking !== null }}
+                  onCheckBots={() => void bots.check(`sub:${r.subscriptionId}`, { subscriptionId: r.subscriptionId })}
+                  onCheckDbs={() => void dbs.check(`sub:${r.subscriptionId}`, { subscriptionId: r.subscriptionId })}
+                />
+              </Suspense>
+            )}
           />
         )}
 
@@ -952,24 +967,6 @@ export default function App() {
           }}
           account={{ name: who, email: me?.email ?? null, egressIp: data?.egressIp, backendStarted }}
           onClose={() => setShowSettings(false)}
-        /></Suspense>
-      )}
-
-      {customerDetailRow && (
-        <Suspense fallback={null}><CustomerDetail
-          row={customerDetailRow}
-          archiveWarming={!!data?.warming}
-          accountName={customerDetail?.account ?? null}
-          onSwitch={(account) => setCustomerDetail({ key: customerDetailRow.key, account })}
-          today={today}
-          bots={bots.data}
-          dbs={dbs.data}
-          botsBusy={bots.checking === `sub:${customerDetailRow.subscriptionId}`}
-          dbsBusy={dbs.checking === `sub:${customerDetailRow.subscriptionId}`}
-          checkDisabled={{ bots: bots.checking !== null, dbs: dbs.checking !== null }}
-          onCheckBots={() => void bots.check(`sub:${customerDetailRow.subscriptionId}`, { subscriptionId: customerDetailRow.subscriptionId })}
-          onCheckDbs={() => void dbs.check(`sub:${customerDetailRow.subscriptionId}`, { subscriptionId: customerDetailRow.subscriptionId })}
-          onClose={() => setCustomerDetail(null)}
         /></Suspense>
       )}
 

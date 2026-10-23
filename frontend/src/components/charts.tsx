@@ -1,9 +1,7 @@
-import { Suspense, useEffect, useState, type ReactNode } from 'react';
-import { getSettings, useSettings } from '../lib/settings';
+import { useState } from 'react';
 import { useCountUp } from '../lib/useCountUp';
 
-/* Small animated chart pieces shared by the on-demand "charts" sections of the Customers, Cloud Instances and
-   Databases tabs. Nothing here renders until the user opens the section, so every open replays the animation. */
+/* Small animated chart pieces shared by the rings and bars of the Customers, Cloud Instances and Databases tabs. */
 
 export interface Segment {
   label: string;
@@ -188,56 +186,5 @@ export function StackBars({ rows, empty }: { rows: StackRow[]; empty: string }) 
         </li>
       ))}
     </ul>
-  );
-}
-
-/**
- * The "Visual insights" bar at the top of a tab: one clear call to action. The chart cards (children) are only
- * mounted — and animate in — once it is opened, so closed tabs stay light. "Open charts automatically" in Settings
- * opens it on load.
- */
-export function ChartsSection({ children, label = 'charts' }: { children: ReactNode; label?: string }) {
-  const auto = useSettings().autoCharts;
-  const [open, setOpen] = useState(() => getSettings().autoCharts);
-  useEffect(() => {
-    if (auto) setOpen(true);
-  }, [auto]);
-  return (
-    <>
-      <div
-        className={`insights ${open ? 'insights-open' : ''}`}
-        role="button"
-        tabIndex={0}
-        aria-expanded={open}
-        onClick={() => setOpen((o) => !o)}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault();
-            setOpen((o) => !o);
-          }
-        }}
-      >
-        <span className="ins-ico" aria-hidden>
-          <i />
-          <i />
-          <i />
-        </span>
-        <span className="ins-text">
-          <b>Visual insights</b>
-          <span>{open ? 'Live charts for the filters you have applied' : 'Charts are drawn only when you ask, which keeps the dashboard fast'}</span>
-        </span>
-        <span className="ins-btn">
-          {open ? 'Hide' : 'Show'} {label}
-          <span className="ins-chev" aria-hidden>
-            ▾
-          </span>
-        </span>
-      </div>
-      {open && (
-        <div className="chart-grid charts-full">
-          <Suspense fallback={<div className="skeleton" style={{ height: 220, gridColumn: '1 / -1' }} />}>{children}</Suspense>
-        </div>
-      )}
-    </>
   );
 }

@@ -4,11 +4,12 @@ import { EnvBadge, StatusBadge } from './Badges';
 import { Panel } from './panels';
 import MetricStrip from './MetricStrip';
 import { Donut } from './charts';
-import { ChartsSection } from './charts';
-import type { CustPick } from './viewCharts';
-import { lazyPreload } from '../lib/lazy';
 
-const CustomerCharts = lazyPreload(() => import('./viewCharts').then((m) => ({ default: m.CustomerCharts })));
+export type CustPick =
+  | 'arch-ok' | 'arch-warn' | 'arch-err' | 'arch-none'
+  | 'bot-ok' | 'bot-warn' | 'bot-down' | 'bot-unchecked'
+  | 'db-ok' | 'db-issue' | 'db-unchecked'
+  | 'health-ok' | 'health-warn' | 'health-err' | 'health-idle';
 
 type SortKey = 'name' | 'env' | 'archive' | 'bots' | 'dbs';
 
@@ -97,7 +98,7 @@ export default function CustomersView({
   dbsChecking,
   onCheckBots,
   onCheckDbs,
-  onOpenCustomer,
+  renderDetail,
   archiveWarming = false,
 }: {
   rows: CustomerRow[];
@@ -108,13 +109,29 @@ export default function CustomersView({
   dbsChecking: string | null;
   onCheckBots: (subscriptionId: string) => void;
   onCheckDbs: (subscriptionId: string) => void;
-  /** Open the details panel for a customer (optionally on one of its SRD accounts). */
-  onOpenCustomer: (row: CustomerRow, accountName?: string) => void;
+  /** The details shown right under a customer's row (for one of its SRD accounts, or none). */
+  renderDetail: (row: CustomerRow, accountName: string | null, switchTo: (accountName: string) => void) => React.ReactNode;
 }) {
   const [sort, setSort] = useState<SortKey>('archive');
   const [dir, setDir] = useState<'asc' | 'desc'>('asc');
   const [open, setOpen] = useState<Set<string>>(new Set());
   const [pick, setPick] = useState<CustPick | null>(null);
+  /** Customers whose details are open; the value is the SRD account being shown ('' when it has none). */
+  const [details, setDetails] = useState<Map<string, string>>(new Map());
+  const toggleDetail = (key: string, account: string) =>
+    setDetails((cur) => {
+      const n = new Map(cur);
+      if (n.get(key) === account) n.delete(key);
+      else n.set(key, account);
+      return n;
+    });
+  /** From "Needs attention": expand the customer, show its details and bring the row into view. */
+  const showCustomer = (r: CustomerRow) => {
+    setPick(null);
+    setOpen((cur) => new Set(cur).add(r.key));
+    setDetails((cur) => new Map(cur).set(r.key, r.accounts[0]?.accountName ?? ''));
+    setTimeout(() => document.getElementById(`cust-${r.key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80);
+  };
 
   const PICKS: Record<CustPick, { text: string; test: (r: CustomerRow) => boolean }> = {
     'arch-ok': { text: 'customers with all archives present today', test: (r) => r.archive.monitorable > 0 && r.archive.healthy === r.archive.monitorable },
@@ -302,10 +319,6 @@ export default function CustomersView({
       ]}
     />
 
-    <ChartsSection label="charts">
-      <CustomerCharts rows={rows} onPick={choose} />
-    </ChartsSection>
-
     <div className="cust-layout">
       <div className="cust-main">
       {pick && (
@@ -320,7 +333,7 @@ export default function CustomersView({
       )}
       <Panel
         title={`Customers · ${rows.length} subscription${rows.length === 1 ? '' : 's'}`}
-        right={<span className="panel-legend">{loading ? 'listing bots and databases…' : 'click a row for its SRD accounts'}</span>}
+        right={<span className="panel-legend">{loading ? 'listing bots and databases…' : 'click a row for its SRD accounts and details'}</span>}
         bodyClass="panel-bd-flush"
       >
         {rows.length === 0 ? (
@@ -366,7 +379,7 @@ export default function CustomersView({
                   const dbsBusy = dbsChecking === `sub:${r.subscriptionId}`;
                   return (
                     <FragmentRows key={r.key}>
-                      <tr onClick={() => toggleOpen(r.key)} onDoubleClick={() => onOpenCustomer(r)} style={{ cursor: 'pointer' }} title="Double-click for details">
+                      <tr id={`cust-${r.key}`} className={isOpen ? 'cust-row-open' : ''} onClick={() => toggleOpen(r.key)} style={{ cursor: 'pointer' }} title="Click for its SRD accounts and details">
                         <td>
                           <div className="cust-cell">
                             <span className="cust-caret">{isOpen ? '▾' : '▸'}</span>
@@ -437,8 +450,9 @@ export default function CustomersView({
                       </tr>
                       {isOpen &&
                         r.accounts.map((acct) => (
-                          <tr key={acct.accountName} style={{ background: 'var(--card-2)', cursor: 'default' }}>
-                            <td className="mono" style={{ paddingLeft: 38, color: 'var(--text-2)' }}>
+                          <FragmentRows key={acct.accountName}>
+                          <tr className={`acct-row ${details.get(r.key) === acct.accountName ? 'acct-row-on' : ''}`}>
+                            <td className="mono acct-name">
                               {acct.accountName}
                             </td>
                             <td />
@@ -453,22 +467,47 @@ export default function CustomersView({
                             <td>
                               <button
                                 type="button"
-                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-2)', fontSize: 12 }}
-                                onClick={() => onOpenCustomer(r, acct.accountName)}
+                                className="acct-open"
+                                aria-expanded={details.get(r.key) === acct.accountName}
+                                onClick={() => toggleDetail(r.key, acct.accountName)}
                               >
-                                open details →
+                                {details.get(r.key) === acct.accountName ? 'hide details' : 'open details'}
+                                <span className="acct-open-arrow">{details.get(r.key) === acct.accountName ? '▴' : '▾'}</span>
                               </button>
                             </td>
                             <td />
                             <td />
                           </tr>
+                          {details.get(r.key) === acct.accountName && (
+                            <tr className="cd-inline-row">
+                              <td colSpan={6}>
+                                <div className="cd-inline">{renderDetail(r, acct.accountName, (a) => setDetails((cur) => new Map(cur).set(r.key, a)))}</div>
+                              </td>
+                            </tr>
+                          )}
+                          </FragmentRows>
                         ))}
                       {isOpen && r.accounts.length === 0 && (
-                        <tr style={{ background: 'var(--card-2)', cursor: 'default' }}>
-                          <td colSpan={6} style={{ paddingLeft: 38, color: 'var(--text-3)', fontSize: 12 }}>
-                            No SRD storage account in this subscription.
-                          </td>
-                        </tr>
+                        <FragmentRows>
+                          <tr className="acct-row">
+                            <td colSpan={5} className="acct-name acct-none">
+                              No SRD storage account in this subscription.
+                            </td>
+                            <td>
+                              <button type="button" className="acct-open" aria-expanded={details.has(r.key)} onClick={() => toggleDetail(r.key, '')}>
+                                {details.has(r.key) ? 'hide details' : 'open details'}
+                                <span className="acct-open-arrow">{details.has(r.key) ? '▴' : '▾'}</span>
+                              </button>
+                            </td>
+                          </tr>
+                          {details.has(r.key) && (
+                            <tr className="cd-inline-row">
+                              <td colSpan={6}>
+                                <div className="cd-inline">{renderDetail(r, null, () => undefined)}</div>
+                              </td>
+                            </tr>
+                          )}
+                        </FragmentRows>
                       )}
                     </FragmentRows>
                   );
@@ -488,7 +527,7 @@ export default function CustomersView({
           <ul className="att-list att-compact">
             {attention.map((a) => (
               <li key={a.row.key}>
-                <button type="button" className="att-item" onClick={() => onOpenCustomer(a.row)}>
+                <button type="button" className="att-item" onClick={() => showCustomer(a.row)}>
                   <span className="cust-av">{shortName(a.row.name).slice(0, 2).toUpperCase()}</span>
                   <span className="att-text">
                     <b>
