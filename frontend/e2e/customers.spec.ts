@@ -1,27 +1,7 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { clearFilter, customerRows, start, trackErrors } from './helpers';
 
-const metric = (page: Page, label: string) => page.locator('.mstrip .metric', { hasText: label });
-
 test.describe('Customers tab', () => {
-  test('metric cards filter the table and toggle off', async ({ page }) => {
-    await start(page);
-    const total = await customerRows(page).count();
-    expect(total).toBeGreaterThan(20);
-
-    await metric(page, 'Archive complete').click();
-    await expect(page.locator('.cust-main .banner-warm')).toContainText('Showing only');
-    expect(await customerRows(page).count()).toBeLessThan(total);
-
-    await metric(page, 'Archive complete').click(); // a second click clears it
-    await expect(customerRows(page)).toHaveCount(total);
-
-    await metric(page, 'Databases healthy').click();
-    expect(await customerRows(page).count()).toBeLessThan(total);
-    await page.locator('.cust-main .banner-warm .pill').click();
-    await expect(customerRows(page)).toHaveCount(total);
-  });
-
   test('environment pills narrow the list', async ({ page }) => {
     await start(page);
     const total = await customerRows(page).count();

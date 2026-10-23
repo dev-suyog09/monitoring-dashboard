@@ -8,7 +8,7 @@ test.describe('shell and navigation', () => {
     await expect(page.locator('h1')).toContainText(/Good (morning|afternoon|evening), \w+!/);
     await expect(page.locator('.hdr-user')).toBeVisible();
     await expect(page.locator('.side-item')).toHaveCount(5); // 4 tabs + settings
-    await expect(page.locator('.mstrip .metric')).toHaveCount(4);
+    await expect(page.locator('.mstrip')).toHaveCount(0); // Customers has no metric strip
     expect(errors).toEqual([]);
   });
 
@@ -22,7 +22,7 @@ test.describe('shell and navigation', () => {
     await goTab(page, 'Data');
     await expect(page.locator('.mstrip .metric')).toHaveCount(6);
     await goTab(page, 'Customers');
-    await expect(page.locator('.mstrip .metric')).toHaveCount(4);
+    await expect(page.locator('.mstrip')).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 

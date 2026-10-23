@@ -75,8 +75,6 @@ test.describe('cross-tab consistency of the archive numbers', () => {
     await start(page);
     await expect(page.locator('.cust-main .dtable tbody tr[title]').first()).toBeVisible();
     await expect(page.locator('.banner-warm', { hasText: 'warming up' }).first()).toBeVisible();
-    await expect(page.locator('.mstrip .metric', { hasText: 'Archive complete' })).toContainText('scanning archive');
-    await expect(page.locator('.mstrip .metric', { hasText: 'Archive complete' })).not.toContainText('all archived');
     const chips = await page.locator('.cust-main .dtable tbody tr[title] td:nth-child(3)').allInnerTexts();
     expect(chips.length).toBeGreaterThan(10);
     for (const c of chips) expect(c).toContain('scanning');

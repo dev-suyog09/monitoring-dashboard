@@ -2,13 +2,6 @@ import { useMemo, useState } from 'react';
 import type { CustomerRow } from '../lib/customers';
 import { EnvBadge } from './Badges';
 import { Panel } from './panels';
-import MetricStrip from './MetricStrip';
-export type CustPick =
-  | 'arch-ok' | 'arch-warn' | 'arch-err' | 'arch-none'
-  | 'bot-ok' | 'bot-warn' | 'bot-down' | 'bot-unchecked'
-  | 'db-ok' | 'db-issue' | 'db-unchecked'
-  | 'health-ok' | 'health-warn' | 'health-err' | 'health-idle';
-
 type SortKey = 'name' | 'env' | 'archive' | 'bots' | 'dbs';
 
 const fmtTime = (iso: string | null) =>
@@ -112,7 +105,6 @@ export default function CustomersView({
 }) {
   const [sort, setSort] = useState<SortKey>('archive');
   const [dir, setDir] = useState<'asc' | 'desc'>('asc');
-  const [pick, setPick] = useState<CustPick | null>(null);
   /** Customers whose details are open; the value is the SRD account being shown ('' when it has none). */
   const [details, setDetails] = useState<Map<string, string>>(new Map());
   /** Click a customer: its full details open (or close) directly below the row. */
@@ -123,52 +115,6 @@ export default function CustomersView({
       else n.set(r.key, r.accounts[0]?.accountName ?? '');
       return n;
     });
-
-  const PICKS: Record<CustPick, { text: string; test: (r: CustomerRow) => boolean }> = {
-    'arch-ok': { text: 'customers with all archives present today', test: (r) => r.archive.monitorable > 0 && r.archive.healthy === r.archive.monitorable },
-    'arch-warn': { text: 'customers with archives missing today', test: (r) => r.archive.monitorable > 0 && r.archive.healthy < r.archive.monitorable && r.archive.errors === 0 },
-    'arch-err': { text: 'customers with archive errors', test: (r) => r.archive.monitorable > 0 && r.archive.healthy < r.archive.monitorable && r.archive.errors > 0 },
-    'arch-none': { text: 'customers without an SRD account', test: (r) => r.accounts.length === 0 || r.archive.monitorable === 0 },
-    'bot-ok': { text: 'customers with started bot instances', test: (r) => r.bots.started > 0 },
-    'bot-warn': { text: 'customers with starting / other bot instances', test: (r) => r.bots.starting > 0 },
-    'bot-down': { text: 'customers with stopped / unresponsive bot instances', test: (r) => r.bots.down > 0 },
-    'bot-unchecked': { text: 'customers whose bots are not checked yet', test: (r) => r.bots.services > 0 && r.bots.checked === 0 },
-    'db-ok': { text: 'customers with healthy databases', test: (r) => r.dbs.checked - r.dbs.issues > 0 },
-    'db-issue': { text: 'customers with database issues', test: (r) => r.dbs.issues > 0 },
-    'db-unchecked': { text: 'customers with databases not checked yet', test: (r) => r.dbs.total - r.dbs.checked > 0 },
-    'health-ok': { text: 'fully healthy customers', test: (r) => healthClass(r) === 'ok' },
-    'health-warn': { text: 'customers that need a look', test: (r) => healthClass(r) === 'warn' },
-    'health-err': { text: 'critical customers (instances down, database issues or archive errors)', test: (r) => healthClass(r) === 'err' },
-    'health-idle': { text: 'customers that are not checked', test: (r) => healthClass(r) === 'idle' },
-  };
-
-  const kpi = useMemo(() => {
-    let archiveOk = 0;
-    let partialCustomers = 0;
-    let botsDown = 0;
-    let botsChecked = 0;
-    let dbIssues = 0;
-    let dbChecked = 0;
-    for (const r of rows) {
-      if (r.archive.monitorable > 0 && r.archive.healthy === r.archive.monitorable) {
-        archiveOk++;
-        if (r.archive.partialFolders > 0) partialCustomers++;
-      }
-      botsDown += r.bots.down;
-      botsChecked += r.bots.checked;
-      dbIssues += r.dbs.issues;
-      dbChecked += r.dbs.checked;
-    }
-    let withSrd = 0;
-    let up = 0;
-    let instances = 0;
-    for (const r of rows) {
-      if (r.archive.monitorable > 0) withSrd++;
-      up += r.bots.started;
-      instances += r.bots.instances;
-    }
-    return { archiveOk, partialCustomers, botsDown, botsChecked, dbIssues, dbChecked, withSrd, up, instances };
-  }, [rows]);
 
   const sorted = useMemo(() => {
     const val = (r: CustomerRow): string | number => {
@@ -185,14 +131,14 @@ export default function CustomersView({
           return dbsRank(r);
       }
     };
-    return (pick ? rows.filter(PICKS[pick].test) : rows).sort((a, b) => {
+    return [...rows].sort((a, b) => {
       const av = val(a);
       const bv = val(b);
       const c = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv));
       return (dir === 'asc' ? c : -c) || a.name.localeCompare(b.name);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, sort, dir, pick]);
+  }, [rows, sort, dir]);
 
   const toggleSort = (k: SortKey) => {
     if (k === sort) setDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -220,58 +166,8 @@ export default function CustomersView({
         this tab appear when it finishes, usually within 1–4 minutes — nothing here is "missing" yet.
       </div>
     )}
-    <MetricStrip
-      metrics={[
-        { key: 'all', label: 'Customers', value: rows.length, sub: archiveWarming ? 'archive scan warming up' : `${kpi.withSrd} with an SRD account`, tone: 'neutral', active: pick === null, onClick: () => setPick(null) },
-        {
-          key: 'arch',
-          label: 'Archive complete',
-          value: archiveWarming ? '…' : kpi.archiveOk,
-          ring: kpi.withSrd ? (kpi.archiveOk / kpi.withSrd) * 100 : 0,
-          sub: archiveWarming
-            ? 'scanning archive…'
-            : kpi.withSrd === 0
-              ? 'no archive data'
-              : kpi.withSrd - kpi.archiveOk > 0 ? `${kpi.withSrd - kpi.archiveOk} still missing today` : kpi.partialCustomers > 0 ? `${kpi.partialCustomers} with folders empty` : 'all archived',
-          tone: archiveWarming || kpi.withSrd === 0 ? 'idle' : kpi.archiveOk === kpi.withSrd ? 'ok' : 'warn',
-          active: pick === 'arch-ok',
-          onClick: () => setPick((c) => (c === 'arch-ok' ? null : 'arch-ok')),
-        },
-        {
-          key: 'inst',
-          label: 'Instances up',
-          value: kpi.botsChecked === 0 ? '—' : `${kpi.up}/${kpi.instances}`,
-          ring: kpi.instances ? (kpi.up / kpi.instances) * 100 : 0,
-          sub: kpi.botsChecked === 0 ? 'not checked yet' : kpi.botsDown > 0 ? `▼ ${kpi.botsDown} down` : '▲ all up',
-          tone: kpi.botsChecked === 0 ? 'idle' : kpi.botsDown > 0 ? 'err' : 'ok',
-          active: pick === 'bot-down',
-          onClick: () => setPick((c) => (c === 'bot-down' ? null : 'bot-down')),
-        },
-        {
-          key: 'db',
-          label: 'Databases healthy',
-          value: kpi.dbChecked === 0 ? '—' : `${kpi.dbChecked - kpi.dbIssues}/${kpi.dbChecked}`,
-          ring: kpi.dbChecked ? ((kpi.dbChecked - kpi.dbIssues) / kpi.dbChecked) * 100 : 0,
-          sub: kpi.dbChecked === 0 ? 'not checked yet' : kpi.dbIssues > 0 ? `▼ ${kpi.dbIssues} with issues` : '▲ all healthy',
-          tone: kpi.dbChecked === 0 ? 'idle' : kpi.dbIssues > 0 ? 'err' : 'ok',
-          active: pick === 'db-issue',
-          onClick: () => setPick((c) => (c === 'db-issue' ? null : 'db-issue')),
-        },
-      ]}
-    />
-
     <div className="cust-layout cust-solo">
       <div className="cust-main">
-      {pick && (
-        <div className="banner banner-warm flex items-center justify-between gap-3">
-          <span>
-            Showing only <strong>{PICKS[pick].text}</strong> · {sorted.length}
-          </span>
-          <button className="pill" onClick={() => setPick(null)}>
-            ✕ Show everything
-          </button>
-        </div>
-      )}
       <Panel
         title={`Customers · ${rows.length} subscription${rows.length === 1 ? '' : 's'}`}
         right={<span className="panel-legend">{loading ? 'listing bots and databases…' : 'click a customer for its details'}</span>}
@@ -409,15 +305,6 @@ export default function CustomersView({
     </div>
     </>
   );
-}
-
-/** One health class per customer: critical (err), needs a look (warn), not checked (idle) or fully healthy (ok). */
-function healthClass(r: CustomerRow): 'ok' | 'warn' | 'err' | 'idle' {
-  const checked = r.bots.checked > 0 || r.dbs.checked > 0;
-  if (r.bots.down > 0 || r.dbs.issues > 0 || r.archive.errors > 0) return 'err';
-  if ((r.archive.monitorable > 0 && r.archive.healthy < r.archive.monitorable) || r.bots.starting > 0) return 'warn';
-  if (!checked && r.archive.monitorable === 0) return 'idle';
-  return 'ok';
 }
 
 /** "AZU-NVM-FMC-NCC-PRD-ATD" -> "ATD": the customer part of the subscription name. */
