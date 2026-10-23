@@ -92,7 +92,7 @@ export function useAlerts(data: BotsResponse | null) {
 
     if (desktop && typeof Notification !== 'undefined' && Notification.permission === 'granted' && !document.hasFocus()) {
       try {
-        new Notification('Godzilla Health Monitor', {
+        new Notification('NTRX Health Check', {
           body: fresh.map((f) => `${f.title}: ${f.body}`).join('\n'),
           tag: 'godzilla-instance-down',
         });

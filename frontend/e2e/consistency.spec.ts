@@ -75,8 +75,6 @@ test.describe('cross-tab consistency of the archive numbers', () => {
     await start(page);
     await expect(page.locator('.cust-main .dtable tbody tr[title]').first()).toBeVisible();
     await expect(page.locator('.banner-warm', { hasText: 'warming up' }).first()).toBeVisible();
-    await expect(page.locator('.mstrip .metric', { hasText: 'Archive complete' })).toContainText('scanning archive');
-    await expect(page.locator('.mstrip .metric', { hasText: 'Archive complete' })).not.toContainText('all archived');
     const chips = await page.locator('.cust-main .dtable tbody tr[title] td:nth-child(3)').allInnerTexts();
     expect(chips.length).toBeGreaterThan(10);
     for (const c of chips) expect(c).toContain('scanning');
@@ -89,14 +87,14 @@ test.describe('cross-tab consistency of the archive numbers', () => {
     test.skip(sample.length === 0, 'no partial or missing account right now');
     for (const acct of sample) {
       const row = customerRows(page).filter({ hasText: acct.subscription ?? '' }).first();
-      await row.dblclick();
+      await row.click();
       const pills = page.locator('.cd-accts .pill', { hasText: acct.accountName });
       if (await pills.count()) await pills.first().click();
       const tile = page.locator('.cd-kpi', { hasText: 'Archive folders' });
       await expect(tile, acct.accountName).toContainText(`${acct.capturesWithToday}/${acct.capturesTotal}`);
       if (acct.status === 'healthy' && acct.capturesWithToday < acct.capturesTotal) await expect(page.locator('.cd-note')).toBeVisible();
-      await page.keyboard.press('Escape');
-      await expect(page.locator('.sheet')).toHaveCount(0);
+      await row.click();
+      await expect(page.locator('.cd-inline')).toHaveCount(0);
     }
   });
 

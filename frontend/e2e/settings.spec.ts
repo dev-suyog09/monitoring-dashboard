@@ -98,20 +98,17 @@ test.describe('Settings', () => {
   test('default tab, auto charts, density and tune persist across a reload', async ({ page }) => {
     await start(page, { settings: { defaultTab: 'bots', autoCharts: true, density: 'compact', tune: 'zen' }, theme: 'calm' });
     await expect(page.locator('.page-eyebrow')).toHaveText(/Cloud Instances/i);
-    await expect(page.locator('.chart-grid')).toBeVisible();
     await expect(html(page)).toHaveAttribute('data-density', 'compact');
     await page.reload();
     await expect(page.locator('.page-eyebrow')).toHaveText(/Cloud Instances/i);
     expect((await saved(page)).tune).toBe('zen');
   });
 
-  test('auto re-check interval and charts-on-load switches save', async ({ page }) => {
+  test('auto re-check interval saves', async ({ page }) => {
     await start(page);
     await openSettings(page);
     await page.locator('.set-select').nth(1).selectOption('30');
     expect((await saved(page)).autoMinutes).toBe(30);
-    await page.getByRole('switch', { name: 'Open charts automatically' }).click();
-    expect((await saved(page)).autoCharts).toBe(true);
   });
 
   test('reset puts the settings back to defaults', async ({ page }) => {

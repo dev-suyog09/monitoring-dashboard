@@ -1,6 +1,6 @@
 # Security
 
-Godzilla Health Monitor is a **single-user, read-only tool that runs on your own machine** and talks to Azure with *your*
+NTRX Health Check is a **single-user, read-only tool that runs on your own machine** and talks to Azure with *your*
 `az login` identity. It has no user accounts, no database, no uploads and no webhooks. That decides which security
 controls matter. The real exposure is **another website or another machine reaching the local server**, so the
 protections target that. The table below goes through a standard hardening checklist item by item.

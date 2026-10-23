@@ -5,6 +5,8 @@ import SidePanel from './SidePanel';
 export interface CustomerSuggestion {
   /** Customer code, e.g. "adc". */
   code: string;
+  /** Full subscription names this code stands for, e.g. ["AZU-NVM-FMC-NCC-PRD-GBK"]. */
+  subs: string[];
   /** e.g. "1 SRD · 3 bots · 3 dbs". */
   detail: string;
   /** True when this customer is already inside the current group / chips (or there is no group yet). */
@@ -70,6 +72,17 @@ export default function WatchlistSearch({
     if (t && !terms.includes(t)) setTerms([...terms, t]);
     setDraft('');
   };
+  /** Chips and suggestions show the subscription name(s) a customer code stands for. */
+  const subsOf = (t: string) => {
+    const exact = suggestions.find((s) => s.code === t);
+    if (exact) return exact.subs;
+    const p = t.replace(/\*$/, ''); // a bare customer ("gbk") or prefix ("g*") stands for every environment it covers
+    return p ? suggestions.filter((s) => s.code.startsWith(p)).flatMap((s) => s.subs) : [];
+  };
+  const labelOf = (t: string) => {
+    const subs = subsOf(t);
+    return subs.length === 0 ? t : subs.length === 1 ? subs[0]! : `${subs[0]} +${subs.length - 1}`;
+  };
   const removeTerm = (t: string) => setTerms(terms.filter((x) => x !== t));
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -108,9 +121,25 @@ export default function WatchlistSearch({
       a.name.localeCompare(b.name),
     );
     setGroups(next);
+    setActiveGroup(name);
+    setSaveOpen(false);
+  };
+  /** The group last loaded: "Update" saves the current chips back into it. */
+  const [activeGroup, setActiveGroup] = useState<string | null>(null);
+  const active = groups.find((g) => g.name === activeGroup) ?? null;
+  const changed = !!active && (active.terms.length !== terms.length || active.terms.some((t) => !terms.includes(t)));
+  const updateGroup = () => {
+    if (!active) return;
+    setGroups(groups.map((g) => (g.name === active.name ? { ...g, terms: [...terms] } : g)));
+  };
+  /** Add the current chips to a group that already exists (keeps what it has). */
+  const addToGroup = (name: string) => {
+    setGroups(groups.map((g) => (g.name === name ? { ...g, terms: [...new Set([...g.terms, ...terms])] } : g)));
+    setActiveGroup(name);
     setSaveOpen(false);
   };
   const loadGroup = (g: WatchGroup) => {
+    setActiveGroup(g.name);
     setTerms([...g.terms]);
     setMenuOpen(false);
   };
@@ -132,9 +161,9 @@ export default function WatchlistSearch({
       <div className="wl" onClick={() => inputRef.current?.focus()}>
         <span className="wl-ico" aria-hidden style={{ color: 'var(--text-3)', fontSize: 13 }}>🔍</span>
         {terms.map((t) => (
-          <span key={t} className="wchip">
-            {t}
-            <button type="button" onClick={() => removeTerm(t)} aria-label={`Remove ${t}`}>
+          <span key={t} className="wchip" title={subsOf(t).join(', ') || t}>
+            {labelOf(t)}
+            <button type="button" onClick={() => removeTerm(t)} aria-label={`Remove ${labelOf(t)}`}>
               ✕
             </button>
           </span>
@@ -182,7 +211,7 @@ export default function WatchlistSearch({
                     onMouseEnter={() => setHi(i)}
                     onClick={() => choose(row)}
                   >
-                    <span className="mono wl-suggest-code">{row.s.code.toUpperCase()}</span>
+                    <span className="mono wl-suggest-code">{row.s.subs.length ? row.s.subs.join(' · ') : row.s.code.toUpperCase()}</span>
                     <span className="wl-suggest-detail">{row.s.detail}</span>
                     {row.kind === 'add' && scoped && <span className="wl-suggest-add">＋ add</span>}
                   </button>
@@ -206,10 +235,15 @@ export default function WatchlistSearch({
       <div className="wl-actions">
         {terms.length > 0 && (
           <>
+            {active && changed && (
+              <button className="pill pill-on" type="button" onClick={updateGroup} title={`Save the current customers into “${active.name}”`}>
+                💾 Update “{active.name}”
+              </button>
+            )}
             <button className="pill" type="button" onClick={saveAsGroup} title="Save these customers as a named group">
               ★ Save group
             </button>
-            <button className="pill" type="button" onClick={() => setTerms([])} title="Clear watchlist">
+            <button className="pill" type="button" onClick={() => { setTerms([]); setActiveGroup(null); }} title="Clear watchlist">
               Clear
             </button>
           </>
@@ -276,13 +310,27 @@ export default function WatchlistSearch({
             autoComplete="off"
             spellCheck={false}
           />
+          {groups.length > 0 && (
+            <>
+              <div className="sheet-label" style={{ marginTop: 18 }}>
+                Or add these to an existing group
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {groups.map((g) => (
+                  <button key={g.name} type="button" className="pill" onClick={() => addToGroup(g.name)} title={`Add the ${terms.length} customers below to “${g.name}”`}>
+                    ＋ {g.name} <span style={{ color: 'var(--text-3)' }}>({g.terms.length})</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
           <div className="sheet-label" style={{ marginTop: 18 }}>
             Includes {terms.length} customer{terms.length === 1 ? '' : 's'}
           </div>
           <div className="flex flex-wrap gap-2">
             {terms.map((t) => (
               <span key={t} className="wchip">
-                {t}
+                {labelOf(t)}
               </span>
             ))}
           </div>

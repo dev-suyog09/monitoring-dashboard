@@ -14,6 +14,13 @@ export function customerOf(name: string): string {
   return (m ? m[1]! : name.split(/[-_.]/)[0]!).toLowerCase();
 }
 
+/** "gbkprduaensasrd01" -> "gbkprd": the customer plus its environment, so PRD / UAT / DEV can be added one by one. */
+export function customerEnvOf(name: string): string {
+  const code = customerOf(name);
+  const n = name.toLowerCase();
+  return n.startsWith(code) && /^(prd|uat|dev|tst|stg|poc)/.test(n.slice(code.length)) ? n.slice(0, code.length + 3) : code;
+}
+
 export type EnvName = 'PRD' | 'UAT' | 'DEV' | 'OTHER';
 
 /** Environment from a resource name: prd -> PRD, uat -> UAT, dev / tst -> DEV (same grouping as the Archive tab). */

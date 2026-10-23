@@ -15,7 +15,7 @@ import { coverageSeries, isMonitorable } from './lib/history';
 import { loadGroups, saveGroups, type WatchGroup } from './lib/watchlist';
 import { Panel, StatPanel, CoverageChart, Gauge } from './components/panels';
 import WatchlistSearch, { type CustomerSuggestion } from './components/WatchlistSearch';
-import { matchesWatch, matchesFilter, envOf, customerOf, type EnvName } from './lib/watchMatch';
+import { matchesWatch, matchesFilter, envOf, customerEnvOf, type EnvName } from './lib/watchMatch';
 import AccountTable from './components/AccountTable';
 import { lazyPreload, preloadLazyChunks, whenIdle } from './lib/lazy';
 import { everyLabel, getSettings, useApplySettings, useSettings } from './lib/settings';
@@ -90,7 +90,6 @@ export default function App() {
   const [draft, setDraft] = useState('');
   const [groups, setGroups] = useState<WatchGroup[]>(() => loadGroups());
   const [selected, setSelected] = useState<string | null>(null);
-  const [customerDetail, setCustomerDetail] = useState<{ key: string; account: string | null } | null>(null); // customer opened from the Customers tab
   const { mode, next, setMode, toggleMode } = useTheme();
   const settings = useSettings();
   useApplySettings(settings);
@@ -356,21 +355,23 @@ export default function App() {
 
   // Every customer we know about (from accounts, bots and databases), for the search suggestions.
   const suggestions = useMemo<CustomerSuggestion[]>(() => {
-    const m = new Map<string, { srd: number; bots: number; dbs: Set<string>; inGroup: boolean }>();
-    const at = (name: string) => {
-      const code = customerOf(name);
+    const m = new Map<string, { srd: number; bots: number; dbs: Set<string>; inGroup: boolean; subs: Set<string> }>();
+    const at = (name: string, subscription?: string) => {
+      const code = customerEnvOf(name);
       let e = m.get(code);
-      if (!e) m.set(code, (e = { srd: 0, bots: 0, dbs: new Set(), inGroup: false }));
+      if (!e) m.set(code, (e = { srd: 0, bots: 0, dbs: new Set(), inGroup: false, subs: new Set() }));
+      if (subscription) e.subs.add(subscription);
       if (terms.length > 0 && matchesWatch(name, terms)) e.inGroup = true;
       return e;
     };
-    for (const r of results) at(r.accountName).srd++;
-    for (const c of bots.data?.cloudServices ?? []) at(c.name).bots++;
-    for (const d of dbs.data?.databases ?? []) at(d.server).dbs.add(d.server);
+    for (const r of results) at(r.accountName, r.subscription).srd++;
+    for (const c of bots.data?.cloudServices ?? []) at(c.name, c.subscription).bots++;
+    for (const d of dbs.data?.databases ?? []) at(d.server, d.subscription).dbs.add(d.server);
     return [...m.entries()]
       .sort(([a], [b]) => a.localeCompare(b))
       .map(([code, e]) => ({
         code,
+        subs: [...e.subs].sort(),
         inFilter: terms.length === 0 || e.inGroup,
         detail: [
           e.srd ? `${e.srd} SRD` : '',
@@ -474,7 +475,6 @@ export default function App() {
     }
   }, [watched, filter, atRiskOnly, atRiskList]);
 
-  const customerDetailRow = customerDetail ? (customerRows.find((r) => r.key === customerDetail.key) ?? null) : null;
   const selectedAccount: CheckResult | null = selected
     ? (results.find((r) => r.accountName === selected) ?? null)
     : null;
@@ -496,7 +496,7 @@ export default function App() {
         onMouseLeave={peekOff}
         aria-label="Sections"
       >
-        <span className="brand-mark side-logo" title="Godzilla Health Monitor · NTRX AppOps" aria-hidden>
+        <span className="brand-mark side-logo" title="NTRX Health Check · AppOps" aria-hidden>
           <svg width="24" height="24" viewBox="0 0 64 64">
             <path d="M6 38 L18 38 L24 22 L31 48 L38 14 L45 42 L50 38 L58 38" fill="none" stroke="#fff" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -739,7 +739,24 @@ export default function App() {
             dbsChecking={dbs.checking}
             onCheckBots={(id) => void bots.check(`sub:${id}`, { subscriptionId: id })}
             onCheckDbs={(id) => void dbs.check(`sub:${id}`, { subscriptionId: id })}
-            onOpenCustomer={(r, account) => setCustomerDetail({ key: r.key, account: account ?? null })}
+            renderDetail={(r, account, switchTo) => (
+              <Suspense fallback={<TabSkeleton />}>
+                <CustomerDetail
+                  row={r}
+                  archiveWarming={!!data?.warming}
+                  accountName={account}
+                  onSwitch={switchTo}
+                  today={today}
+                  bots={bots.data}
+                  dbs={dbs.data}
+                  botsBusy={bots.checking === `sub:${r.subscriptionId}`}
+                  dbsBusy={dbs.checking === `sub:${r.subscriptionId}`}
+                  checkDisabled={{ bots: bots.checking !== null, dbs: dbs.checking !== null }}
+                  onCheckBots={() => void bots.check(`sub:${r.subscriptionId}`, { subscriptionId: r.subscriptionId })}
+                  onCheckDbs={() => void dbs.check(`sub:${r.subscriptionId}`, { subscriptionId: r.subscriptionId })}
+                />
+              </Suspense>
+            )}
           />
         )}
 
@@ -892,7 +909,7 @@ export default function App() {
           </>
         )}
         <footer className="dash-foot">
-          Godzilla Health Monitor · NTRX AppOps · bots and databases re-check {everyLabel(settings.autoMinutes)} while this page is open
+          NTRX Health Check · AppOps · bots and databases re-check {everyLabel(settings.autoMinutes)} while this page is open
         </footer>
       </div>
 
@@ -952,24 +969,6 @@ export default function App() {
           }}
           account={{ name: who, email: me?.email ?? null, egressIp: data?.egressIp, backendStarted }}
           onClose={() => setShowSettings(false)}
-        /></Suspense>
-      )}
-
-      {customerDetailRow && (
-        <Suspense fallback={null}><CustomerDetail
-          row={customerDetailRow}
-          archiveWarming={!!data?.warming}
-          accountName={customerDetail?.account ?? null}
-          onSwitch={(account) => setCustomerDetail({ key: customerDetailRow.key, account })}
-          today={today}
-          bots={bots.data}
-          dbs={dbs.data}
-          botsBusy={bots.checking === `sub:${customerDetailRow.subscriptionId}`}
-          dbsBusy={dbs.checking === `sub:${customerDetailRow.subscriptionId}`}
-          checkDisabled={{ bots: bots.checking !== null, dbs: dbs.checking !== null }}
-          onCheckBots={() => void bots.check(`sub:${customerDetailRow.subscriptionId}`, { subscriptionId: customerDetailRow.subscriptionId })}
-          onCheckDbs={() => void dbs.check(`sub:${customerDetailRow.subscriptionId}`, { subscriptionId: customerDetailRow.subscriptionId })}
-          onClose={() => setCustomerDetail(null)}
         /></Suspense>
       )}
 

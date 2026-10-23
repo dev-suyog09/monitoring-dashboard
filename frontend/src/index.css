@@ -293,7 +293,7 @@ button.stat { font: inherit; color: inherit; }
 
 
 /* ═════════════════════════════════════════════════════════════════════════
-   Polish pass — Godzilla Health Monitor
+   Polish pass — NTRX Health Check
    ═════════════════════════════════════════════════════════════════════════ */
 body {
   background:
@@ -1855,3 +1855,55 @@ html[data-palette='macosglassamoled'] .set-select { color: #f5f5f7; }
 html[data-palette='macosglassamoled'] .dtable th, html[data-palette='macosglassamoled'] .panel-hd { background: transparent; }
 html[data-palette='macosglassamoled'] .hdr { background: transparent; border-bottom-color: rgba(255, 255, 255, 0.10); }
 html[data-palette='macosglassamoled'] .wl-suggest, html[data-palette='macosglassamoled'] .wl-dropdown { background: rgba(14, 14, 16, 0.86); }
+
+/* ═════ Customers → account rows and inline details (open right under the row) ═════ */
+.cust-row-open > td { background: color-mix(in srgb, var(--accent) 5%, transparent); }
+.dtable tbody tr.acct-row { cursor: default; animation: none; background: color-mix(in srgb, var(--text-1) 3%, transparent); }
+.dtable tbody tr.acct-row:hover { background: color-mix(in srgb, var(--accent) 7%, transparent); }
+.dtable tbody tr.acct-row > td { padding-top: 9px; padding-bottom: 9px; }
+.dtable tbody tr.acct-row > td:first-child { box-shadow: inset 3px 0 0 color-mix(in srgb, var(--accent) 55%, transparent); }
+.dtable tbody tr.acct-row-on > td { background: color-mix(in srgb, var(--accent) 10%, transparent); }
+.acct-name { padding-left: 44px !important; font-size: 12px; color: var(--text-2); }
+.acct-none { color: var(--text-3); font-size: 12px; font-style: italic; }
+.acct-open { display: inline-flex; align-items: center; gap: 6px; padding: 4px 12px; border-radius: 999px; font-size: 11.5px; font-weight: 700; cursor: pointer; white-space: nowrap; color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent); transition: background 0.15s, transform 0.15s; }
+.acct-open:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); transform: translateY(-1px); }
+.acct-open[aria-expanded='true'] { background: var(--accent); color: #fff; border-color: transparent; }
+.acct-open-arrow { font-size: 9px; }
+
+.dtable tbody tr.cd-inline-row { cursor: default; animation: none; }
+.dtable tbody tr.cd-inline-row:hover { background: transparent; }
+.dtable tbody tr.cd-inline-row > td { padding: 0 !important; white-space: normal; border-bottom: 1px solid var(--border); }
+.cd-inline { container-type: inline-size; margin: 6px 14px 16px 44px; padding: 18px; border-radius: 20px; border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border)); background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 7%, var(--card)), var(--card) 160px); box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18); animation: cd-in 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+@keyframes cd-in { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@media (max-width: 720px) { .cd-inline { margin-left: 10px; margin-right: 10px; padding: 12px; } }
+.cd-body { display: flex; flex-direction: column; }
+.cd-head { flex-wrap: wrap; }
+.cd-title { font-size: 18px; font-weight: 800; letter-spacing: -0.02em; color: var(--text-1); }
+.cd-inline .cd-sub { margin-left: 0; flex: 1 1 200px; font-size: 11.5px; }
+.cd-inline .cd-sec { background: color-mix(in srgb, var(--text-1) 3%, var(--card)); }
+.cd-inline .cd-kpis { margin-bottom: 14px; }
+[data-theme='light'] .cd-inline { background: linear-gradient(180deg, #f3effc, #fff 160px); border-color: #e0d9f2; box-shadow: 0 8px 24px rgba(98, 74, 170, 0.1); }
+[data-theme='light'] .cd-inline .cd-sec { background: #fff; }
+@media (prefers-reduced-motion: reduce) { .cd-inline { animation: none; } }
+
+/* Customers: the table now has the whole width (no side column); customer names are the full subscription names */
+.cust-layout.cust-solo { grid-template-columns: minmax(0, 1fr); }
+.cust-main .cust-short { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13.5px; letter-spacing: 0; }
+.cust-main .cust-full { font-family: inherit; font-size: 11px; }
+.cust-row-open > td { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.cust-row-open > td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.cd-inline { margin: 0; border-radius: 0; border-width: 0 0 0 3px; border-left-color: var(--accent); box-shadow: none; padding: 20px 22px 22px; }
+@media (max-width: 720px) { .cd-inline { margin: 0; padding: 14px; } }
+
+/* Customers table: calm palette — colour is kept only for what needs attention (warnings, errors, down) */
+.cust-main .dtable .chip.st-ok, .cust-main .dtable .chip.st-idle, .cust-main .dtable .chip[class*='en-'] { background: transparent; color: var(--text-2); border: 1px solid var(--border); box-shadow: none; }
+.cust-main .dtable .chip.st-ok .dot { background: var(--ok); box-shadow: none; }
+.cust-main .dtable .chip[class*='en-'] { font-weight: 700; letter-spacing: 0.04em; }
+.cust-main .cust-av { background: color-mix(in srgb, var(--text-1) 8%, var(--card-2)); border-color: var(--border); color: var(--text-2); }
+.cust-main .dtable .chip.st-warn { background: transparent; border: 1px solid color-mix(in srgb, var(--warn) 45%, transparent); }
+.cust-main .dtable .chip.st-err { background: transparent; border: 1px solid color-mix(in srgb, var(--err) 55%, transparent); }
+.cust-main .dtable .chip-mini { display: none; }
+.cust-main .dtable td.mono { color: var(--text-3); }
+.wl .wchip { max-width: 100%; }
+.wl-suggest-code { min-width: 0; font-size: 12.5px; letter-spacing: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wl .wchip { font-size: 11.5px; background: color-mix(in srgb, var(--text-1) 8%, transparent); border: 1px solid var(--border); }

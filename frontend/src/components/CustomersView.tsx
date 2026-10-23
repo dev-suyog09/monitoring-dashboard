@@ -1,15 +1,7 @@
 import { useMemo, useState } from 'react';
 import type { CustomerRow } from '../lib/customers';
-import { EnvBadge, StatusBadge } from './Badges';
+import { EnvBadge } from './Badges';
 import { Panel } from './panels';
-import MetricStrip from './MetricStrip';
-import { Donut } from './charts';
-import { ChartsSection } from './charts';
-import type { CustPick } from './viewCharts';
-import { lazyPreload } from '../lib/lazy';
-
-const CustomerCharts = lazyPreload(() => import('./viewCharts').then((m) => ({ default: m.CustomerCharts })));
-
 type SortKey = 'name' | 'env' | 'archive' | 'bots' | 'dbs';
 
 const fmtTime = (iso: string | null) =>
@@ -97,7 +89,7 @@ export default function CustomersView({
   dbsChecking,
   onCheckBots,
   onCheckDbs,
-  onOpenCustomer,
+  renderDetail,
   archiveWarming = false,
 }: {
   rows: CustomerRow[];
@@ -108,101 +100,21 @@ export default function CustomersView({
   dbsChecking: string | null;
   onCheckBots: (subscriptionId: string) => void;
   onCheckDbs: (subscriptionId: string) => void;
-  /** Open the details panel for a customer (optionally on one of its SRD accounts). */
-  onOpenCustomer: (row: CustomerRow, accountName?: string) => void;
+  /** The details shown right under a customer's row (for one of its SRD accounts, or none). */
+  renderDetail: (row: CustomerRow, accountName: string | null, switchTo: (accountName: string) => void) => React.ReactNode;
 }) {
   const [sort, setSort] = useState<SortKey>('archive');
   const [dir, setDir] = useState<'asc' | 'desc'>('asc');
-  const [open, setOpen] = useState<Set<string>>(new Set());
-  const [pick, setPick] = useState<CustPick | null>(null);
-
-  const PICKS: Record<CustPick, { text: string; test: (r: CustomerRow) => boolean }> = {
-    'arch-ok': { text: 'customers with all archives present today', test: (r) => r.archive.monitorable > 0 && r.archive.healthy === r.archive.monitorable },
-    'arch-warn': { text: 'customers with archives missing today', test: (r) => r.archive.monitorable > 0 && r.archive.healthy < r.archive.monitorable && r.archive.errors === 0 },
-    'arch-err': { text: 'customers with archive errors', test: (r) => r.archive.monitorable > 0 && r.archive.healthy < r.archive.monitorable && r.archive.errors > 0 },
-    'arch-none': { text: 'customers without an SRD account', test: (r) => r.accounts.length === 0 || r.archive.monitorable === 0 },
-    'bot-ok': { text: 'customers with started bot instances', test: (r) => r.bots.started > 0 },
-    'bot-warn': { text: 'customers with starting / other bot instances', test: (r) => r.bots.starting > 0 },
-    'bot-down': { text: 'customers with stopped / unresponsive bot instances', test: (r) => r.bots.down > 0 },
-    'bot-unchecked': { text: 'customers whose bots are not checked yet', test: (r) => r.bots.services > 0 && r.bots.checked === 0 },
-    'db-ok': { text: 'customers with healthy databases', test: (r) => r.dbs.checked - r.dbs.issues > 0 },
-    'db-issue': { text: 'customers with database issues', test: (r) => r.dbs.issues > 0 },
-    'db-unchecked': { text: 'customers with databases not checked yet', test: (r) => r.dbs.total - r.dbs.checked > 0 },
-    'health-ok': { text: 'fully healthy customers', test: (r) => healthClass(r) === 'ok' },
-    'health-warn': { text: 'customers that need a look', test: (r) => healthClass(r) === 'warn' },
-    'health-err': { text: 'critical customers (instances down, database issues or archive errors)', test: (r) => healthClass(r) === 'err' },
-    'health-idle': { text: 'customers that are not checked', test: (r) => healthClass(r) === 'idle' },
-  };
-
-  const kpi = useMemo(() => {
-    let archiveOk = 0;
-    let partialCustomers = 0;
-    let botsDown = 0;
-    let botsChecked = 0;
-    let dbIssues = 0;
-    let dbChecked = 0;
-    for (const r of rows) {
-      if (r.archive.monitorable > 0 && r.archive.healthy === r.archive.monitorable) {
-        archiveOk++;
-        if (r.archive.partialFolders > 0) partialCustomers++;
-      }
-      botsDown += r.bots.down;
-      botsChecked += r.bots.checked;
-      dbIssues += r.dbs.issues;
-      dbChecked += r.dbs.checked;
-    }
-    let withSrd = 0;
-    let up = 0;
-    let instances = 0;
-    for (const r of rows) {
-      if (r.archive.monitorable > 0) withSrd++;
-      up += r.bots.started;
-      instances += r.bots.instances;
-    }
-    return { archiveOk, partialCustomers, botsDown, botsChecked, dbIssues, dbChecked, withSrd, up, instances };
-  }, [rows]);
-
-  /** Customers ranked by how much is wrong, each with the pills explaining why. */
-  const attention = useMemo(() => {
-    const list: { row: CustomerRow; score: number; pills: { text: string; scope: string }[] }[] = [];
-    for (const r of rows) {
-      const pills: { text: string; scope: string }[] = [];
-      let score = 0;
-      if (r.bots.down > 0) {
-        pills.push({ text: `${r.bots.down} down`, scope: 'st-err' });
-        score += 100 * r.bots.down;
-      }
-      if (r.dbs.issues > 0) {
-        pills.push({ text: `${r.dbs.issues} DB issue${r.dbs.issues === 1 ? '' : 's'}`, scope: 'st-err' });
-        score += 60 * r.dbs.issues;
-      }
-      if (r.archive.monitorable > 0 && r.archive.errors > 0) {
-        pills.push({ text: 'archive error', scope: 'st-err' });
-        score += 50;
-      } else if (r.archive.monitorable > 0 && r.archive.healthy < r.archive.monitorable) {
-        pills.push({ text: 'missing today', scope: 'st-warn' });
-        score += 10;
-      }
-      if (r.bots.starting > 0) {
-        pills.push({ text: `${r.bots.starting} starting`, scope: 'st-warn' });
-        score += 5;
-      }
-      if (pills.length) list.push({ row: r, score, pills });
-    }
-    return list.sort((a, b) => b.score - a.score).slice(0, 6);
-  }, [rows]);
-
-  const health = useMemo(() => {
-    const h = { ok: 0, warn: 0, err: 0, idle: 0 };
-    for (const r of rows) h[healthClass(r)]++;
-    return h;
-  }, [rows]);
-
-  /** Pick a slice / legend row: filter the table to it and bring the table into view. */
-  const choose = (k: CustPick) => {
-    setPick((cur) => (cur === k ? null : k));
-    setTimeout(() => document.querySelector('.cust-main')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
-  };
+  /** Customers whose details are open; the value is the SRD account being shown ('' when it has none). */
+  const [details, setDetails] = useState<Map<string, string>>(new Map());
+  /** Click a customer: its full details open (or close) directly below the row. */
+  const toggleDetail = (r: CustomerRow) =>
+    setDetails((cur) => {
+      const n = new Map(cur);
+      if (n.has(r.key)) n.delete(r.key);
+      else n.set(r.key, r.accounts[0]?.accountName ?? '');
+      return n;
+    });
 
   const sorted = useMemo(() => {
     const val = (r: CustomerRow): string | number => {
@@ -219,14 +131,14 @@ export default function CustomersView({
           return dbsRank(r);
       }
     };
-    return (pick ? rows.filter(PICKS[pick].test) : rows).sort((a, b) => {
+    return [...rows].sort((a, b) => {
       const av = val(a);
       const bv = val(b);
       const c = typeof av === 'number' && typeof bv === 'number' ? av - bv : String(av).localeCompare(String(bv));
       return (dir === 'asc' ? c : -c) || a.name.localeCompare(b.name);
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, sort, dir, pick]);
+  }, [rows, sort, dir]);
 
   const toggleSort = (k: SortKey) => {
     if (k === sort) setDir((d) => (d === 'asc' ? 'desc' : 'asc'));
@@ -236,14 +148,6 @@ export default function CustomersView({
     }
   };
   const arrow = (k: SortKey) => (k === sort ? (dir === 'asc' ? ' ↑' : ' ↓') : '');
-  const toggleOpen = (key: string) =>
-    setOpen((cur) => {
-      const n = new Set(cur);
-      if (n.has(key)) n.delete(key);
-      else n.add(key);
-      return n;
-    });
-
   const headers: { key: SortKey | null; label: string }[] = [
     { key: 'name', label: 'customer' },
     { key: 'env', label: 'env' },
@@ -262,65 +166,11 @@ export default function CustomersView({
         this tab appear when it finishes, usually within 1–4 minutes — nothing here is "missing" yet.
       </div>
     )}
-    <MetricStrip
-      metrics={[
-        { key: 'all', label: 'Customers', value: rows.length, sub: archiveWarming ? 'archive scan warming up' : `${kpi.withSrd} with an SRD account`, tone: 'neutral', active: pick === null, onClick: () => setPick(null) },
-        {
-          key: 'arch',
-          label: 'Archive complete',
-          value: archiveWarming ? '…' : kpi.archiveOk,
-          ring: kpi.withSrd ? (kpi.archiveOk / kpi.withSrd) * 100 : 0,
-          sub: archiveWarming
-            ? 'scanning archive…'
-            : kpi.withSrd === 0
-              ? 'no archive data'
-              : kpi.withSrd - kpi.archiveOk > 0 ? `${kpi.withSrd - kpi.archiveOk} still missing today` : kpi.partialCustomers > 0 ? `${kpi.partialCustomers} with folders empty` : 'all archived',
-          tone: archiveWarming || kpi.withSrd === 0 ? 'idle' : kpi.archiveOk === kpi.withSrd ? 'ok' : 'warn',
-          active: pick === 'arch-ok',
-          onClick: () => setPick((c) => (c === 'arch-ok' ? null : 'arch-ok')),
-        },
-        {
-          key: 'inst',
-          label: 'Instances up',
-          value: kpi.botsChecked === 0 ? '—' : `${kpi.up}/${kpi.instances}`,
-          ring: kpi.instances ? (kpi.up / kpi.instances) * 100 : 0,
-          sub: kpi.botsChecked === 0 ? 'not checked yet' : kpi.botsDown > 0 ? `▼ ${kpi.botsDown} down` : '▲ all up',
-          tone: kpi.botsChecked === 0 ? 'idle' : kpi.botsDown > 0 ? 'err' : 'ok',
-          active: pick === 'bot-down',
-          onClick: () => setPick((c) => (c === 'bot-down' ? null : 'bot-down')),
-        },
-        {
-          key: 'db',
-          label: 'Databases healthy',
-          value: kpi.dbChecked === 0 ? '—' : `${kpi.dbChecked - kpi.dbIssues}/${kpi.dbChecked}`,
-          ring: kpi.dbChecked ? ((kpi.dbChecked - kpi.dbIssues) / kpi.dbChecked) * 100 : 0,
-          sub: kpi.dbChecked === 0 ? 'not checked yet' : kpi.dbIssues > 0 ? `▼ ${kpi.dbIssues} with issues` : '▲ all healthy',
-          tone: kpi.dbChecked === 0 ? 'idle' : kpi.dbIssues > 0 ? 'err' : 'ok',
-          active: pick === 'db-issue',
-          onClick: () => setPick((c) => (c === 'db-issue' ? null : 'db-issue')),
-        },
-      ]}
-    />
-
-    <ChartsSection label="charts">
-      <CustomerCharts rows={rows} onPick={choose} />
-    </ChartsSection>
-
-    <div className="cust-layout">
+    <div className="cust-layout cust-solo">
       <div className="cust-main">
-      {pick && (
-        <div className="banner banner-warm flex items-center justify-between gap-3">
-          <span>
-            Showing only <strong>{PICKS[pick].text}</strong> · {sorted.length}
-          </span>
-          <button className="pill" onClick={() => setPick(null)}>
-            ✕ Show everything
-          </button>
-        </div>
-      )}
       <Panel
         title={`Customers · ${rows.length} subscription${rows.length === 1 ? '' : 's'}`}
-        right={<span className="panel-legend">{loading ? 'listing bots and databases…' : 'click a row for its SRD accounts'}</span>}
+        right={<span className="panel-legend">{loading ? 'listing bots and databases…' : 'click a customer for its details'}</span>}
         bodyClass="panel-bd-flush"
       >
         {rows.length === 0 ? (
@@ -345,7 +195,7 @@ export default function CustomersView({
               </thead>
               <tbody>
                 {sorted.map((r) => {
-                  const isOpen = open.has(r.key);
+                  const isOpen = details.has(r.key);
                   const a = r.archive;
                   const archiveChip = archiveWarming
                     ? { text: 'scanning…', scope: 'st-idle' }
@@ -366,18 +216,17 @@ export default function CustomersView({
                   const dbsBusy = dbsChecking === `sub:${r.subscriptionId}`;
                   return (
                     <FragmentRows key={r.key}>
-                      <tr onClick={() => toggleOpen(r.key)} onDoubleClick={() => onOpenCustomer(r)} style={{ cursor: 'pointer' }} title="Double-click for details">
+                      <tr id={`cust-${r.key}`} className={isOpen ? 'cust-row-open' : ''} onClick={() => toggleDetail(r)} aria-expanded={isOpen} style={{ cursor: 'pointer' }} title="Click to show its details">
                         <td>
                           <div className="cust-cell">
                             <span className="cust-caret">{isOpen ? '▾' : '▸'}</span>
                             <span className="cust-av">{shortName(r.name).slice(0, 2).toUpperCase()}</span>
                             <span className="cust-txt">
-                              <b className="cust-short">
-                              {shortName(r.name)}
-                              {r.env !== 'OTHER' && <span className={`cust-envtag en-${r.env}`}>{r.env}</span>}
-                            </b>
-                              <span className="cust-full mono" title={r.name}>
-                                {r.name} · {r.accounts.length} acct{r.accounts.length === 1 ? '' : 's'}
+                              <b className="cust-short" title={r.name}>
+                                {r.name}
+                              </b>
+                              <span className="cust-full">
+                                {r.accounts.length} SRD account{r.accounts.length === 1 ? '' : 's'}
                               </span>
                             </span>
                           </div>
@@ -435,38 +284,12 @@ export default function CustomersView({
                         </td>
 
                       </tr>
-                      {isOpen &&
-                        r.accounts.map((acct) => (
-                          <tr key={acct.accountName} style={{ background: 'var(--card-2)', cursor: 'default' }}>
-                            <td className="mono" style={{ paddingLeft: 38, color: 'var(--text-2)' }}>
-                              {acct.accountName}
-                            </td>
-                            <td />
-                            <td>
-                              <StatusBadge status={acct.status} />{' '}
-                              {acct.status !== 'error' && acct.status !== 'no_data' && (
-                                <span className="mono" style={{ color: 'var(--text-3)', fontSize: 12 }}>
-                                  · {acct.capturesWithToday}/{acct.capturesTotal}
-                                </span>
-                              )}
-                            </td>
-                            <td>
-                              <button
-                                type="button"
-                                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-2)', fontSize: 12 }}
-                                onClick={() => onOpenCustomer(r, acct.accountName)}
-                              >
-                                open details →
-                              </button>
-                            </td>
-                            <td />
-                            <td />
-                          </tr>
-                        ))}
-                      {isOpen && r.accounts.length === 0 && (
-                        <tr style={{ background: 'var(--card-2)', cursor: 'default' }}>
-                          <td colSpan={6} style={{ paddingLeft: 38, color: 'var(--text-3)', fontSize: 12 }}>
-                            No SRD storage account in this subscription.
+                      {isOpen && (
+                        <tr className="cd-inline-row">
+                          <td colSpan={6}>
+                            <div className="cd-inline">
+                              {renderDetail(r, details.get(r.key) || null, (acct) => setDetails((cur) => new Map(cur).set(r.key, acct)))}
+                            </div>
                           </td>
                         </tr>
                       )}
@@ -479,63 +302,9 @@ export default function CustomersView({
         )}
       </Panel>
       </div>
-      <aside className="cust-side">
-        <div className="side-scroll">
-      <Panel title="Needs attention" right={<span className="panel-legend">{attention.length === 0 ? 'all clear' : `top ${attention.length}`}</span>} bodyClass="panel-bd-flush">
-        {attention.length === 0 ? (
-          <p className="panel-empty">✓ Nothing needs attention in this view.</p>
-        ) : (
-          <ul className="att-list att-compact">
-            {attention.map((a) => (
-              <li key={a.row.key}>
-                <button type="button" className="att-item" onClick={() => onOpenCustomer(a.row)}>
-                  <span className="cust-av">{shortName(a.row.name).slice(0, 2).toUpperCase()}</span>
-                  <span className="att-text">
-                    <b>
-                      {shortName(a.row.name)}
-                      {a.row.env !== 'OTHER' && <span className={`cust-envtag en-${a.row.env}`}>{a.row.env}</span>}
-                    </b>
-                    <span className="att-sub mono">{a.row.name}</span>
-                  </span>
-                  <span className="att-pills">
-                    {a.pills.map((p) => (
-                      <span key={p.text} className={`spill ${p.scope}`}>
-                        {p.text}
-                      </span>
-                    ))}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </Panel>
-      <Panel title="Overall health" right={<span className="panel-legend">{rows.length} customers</span>}>
-        <Donut
-          center={health.ok}
-          centerLabel="fully healthy"
-          segments={[
-            { label: 'Healthy', value: health.ok, color: 'var(--ok)', onClick: () => choose('health-ok') },
-            { label: 'Needs a look', value: health.warn, color: 'var(--warn)', onClick: () => choose('health-warn') },
-            { label: 'Critical', value: health.err, color: 'var(--err)', onClick: () => choose('health-err') },
-            { label: 'Not checked', value: health.idle, color: 'var(--idle)', onClick: () => choose('health-idle') },
-          ]}
-        />
-      </Panel>
-        </div>
-      </aside>
     </div>
     </>
   );
-}
-
-/** One health class per customer: critical (err), needs a look (warn), not checked (idle) or fully healthy (ok). */
-function healthClass(r: CustomerRow): 'ok' | 'warn' | 'err' | 'idle' {
-  const checked = r.bots.checked > 0 || r.dbs.checked > 0;
-  if (r.bots.down > 0 || r.dbs.issues > 0 || r.archive.errors > 0) return 'err';
-  if ((r.archive.monitorable > 0 && r.archive.healthy < r.archive.monitorable) || r.bots.starting > 0) return 'warn';
-  if (!checked && r.archive.monitorable === 0) return 'idle';
-  return 'ok';
 }
 
 /** "AZU-NVM-FMC-NCC-PRD-ATD" -> "ATD": the customer part of the subscription name. */

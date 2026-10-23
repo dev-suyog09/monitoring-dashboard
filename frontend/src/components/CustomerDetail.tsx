@@ -7,16 +7,9 @@ import { detectEnv } from '../lib/ui';
 import { EnvBadge, StatusBadge } from './Badges';
 import BotStoragePanel from './BotStoragePanel';
 import LatestFiles from './LatestFiles';
-import SidePanel from './SidePanel';
 
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString() : null);
 const shortInstance = (n: string) => n.split('.').pop() ?? n;
-/** "AZU-NVM-FMC-NCC-PRD-ATD" -> "ATD". */
-const shortName = (name: string): string => {
-  const t = name.replace(/^AZU-NVM-FMC-NCC-/, '');
-  return /^(?:PRD|PROD|UAT|DEV|TST|TEST)-(.+)$/i.exec(t)?.[1] ?? t;
-};
-
 function Section({ icon, title, right, children }: { icon: string; title: string; right?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="cd-sec">
@@ -99,7 +92,7 @@ function DbCard({ d, issues }: { d: InfraDatabase; issues: string[] }) {
 }
 
 /**
- * Customers tab → "open details": one side panel with everything about a customer's SRD account and the rest of its
+ * Customers tab → "open details": opens right under the customer's row, with everything about a customer's SRD account and the rest of its
  * subscription — archive coverage, bot storage, the bots with every instance, and the databases (DSM).
  */
 export default function CustomerDetail({
@@ -115,7 +108,6 @@ export default function CustomerDetail({
   checkDisabled,
   onCheckBots,
   onCheckDbs,
-  onClose,
 }: {
   row: CustomerRow;
   archiveWarming?: boolean;
@@ -130,7 +122,6 @@ export default function CustomerDetail({
   checkDisabled: { bots: boolean; dbs: boolean };
   onCheckBots: () => void;
   onCheckDbs: () => void;
-  onClose: () => void;
 }) {
   const account = row.accounts.find((a) => a.accountName === accountName) ?? row.accounts[0] ?? null;
   const sub = row.subscriptionId.toLowerCase();
@@ -156,8 +147,10 @@ export default function CustomerDetail({
   const dbIssueCount = issueMap.filter((x, i) => databases[i]!.checkedAt && x.length > 0).length;
 
   return (
-    <SidePanel title={`${shortName(row.name)}${row.env !== 'OTHER' ? ` · ${row.env}` : ''}`} subtitle={account ? `${account.accountName} · ${row.name}` : row.name} onClose={onClose} width="clamp(560px, 50vw, 1100px)">
+    <div className="cd-body">
       <div className="cd-head">
+        <span className="cd-title">{row.name}</span>
+        <span className="cd-sub mono">{account ? account.accountName : 'no SRD account'}</span>
         {account && <StatusBadge status={account.status} />}
         <EnvBadge env={env} />
         {row.accounts.length > 1 && (
@@ -301,6 +294,6 @@ export default function CustomerDetail({
           )}
         </Section>
       </div>
-    </SidePanel>
+    </div>
   );
 }

@@ -4,10 +4,8 @@ import { Panel } from './panels';
 import { everyLabel, useSettings } from '../lib/settings';
 import MetricStrip from './MetricStrip';
 import AttentionList, { type AttentionItem } from './AttentionList';
-import { ChartsSection, Donut } from './charts';
-import { lazyPreload } from '../lib/lazy';
+import { Donut } from './charts';
 
-const DbCharts = lazyPreload(() => import('./viewCharts').then((m) => ({ default: m.DbCharts })));
 
 export type DbScope = { server?: string; db?: string; subscriptionId?: string };
 
@@ -295,10 +293,6 @@ export default function DatabasesView({
           },
         ]}
       />
-
-      <ChartsSection label="charts">
-        <DbCharts data={data} onPick={(k) => setFilter(k)} />
-      </ChartsSection>
 
       <div className="cust-layout">
         <div className="cust-main">

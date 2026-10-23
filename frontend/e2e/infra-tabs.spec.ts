@@ -5,17 +5,12 @@ const metric = (page: Page, label: string | RegExp) => page.locator('.mstrip .me
 const banner = (page: Page) => page.locator('.banner-warm').first();
 
 test.describe('Cloud Instances tab', () => {
-  test('layout: 5 metrics, insights bar under them, attention list and health donut', async ({ page }) => {
+  test('layout: 5 metrics, attention list and health donut', async ({ page }) => {
     const errors = trackErrors(page);
     await start(page);
     await goTab(page, 'Cloud');
     await expect(page.locator('.mstrip .metric')).toHaveCount(5);
-    const order = await page.evaluate(() => {
-      const strip = document.querySelector('.mstrip')!;
-      const bar = document.querySelector('.insights')!;
-      return !!(strip.compareDocumentPosition(bar) & Node.DOCUMENT_POSITION_FOLLOWING);
-    });
-    expect(order).toBe(true);
+    await expect(page.locator('.insights')).toHaveCount(0);
     await expect(page.locator('.att-item').first()).toBeVisible();
     await expect(page.locator('.cust-side .donut-wrap')).toHaveCount(1);
     expect(errors).toEqual([]);
@@ -39,19 +34,6 @@ test.describe('Cloud Instances tab', () => {
     await expect(page.locator('.banner-warm', { hasText: 'Showing only' })).toHaveCount(0);
   });
 
-  test('charts: 3 cards, red slice filters to stopped, no card left alone with a blank gap', async ({ page }) => {
-    await start(page);
-    await goTab(page, 'Cloud');
-    await page.locator('.insights').click();
-    await expect(page.locator('.chart-grid > .panel')).toHaveCount(3);
-    // the last bar chart spans the full row
-    const last = await page.locator('.chart-grid > .panel').last().boundingBox();
-    const grid = await page.locator('.chart-grid').boundingBox();
-    expect(Math.abs(last!.width - grid!.width)).toBeLessThan(4);
-    await page.locator('.chart-grid .donut-legend li', { hasText: 'Stopped' }).click();
-    await expect(banner(page)).toContainText(/stopped/i);
-  });
-
   test('env pills filter the metrics', async ({ page }) => {
     await start(page);
     await goTab(page, 'Cloud');
@@ -63,7 +45,7 @@ test.describe('Cloud Instances tab', () => {
 });
 
 test.describe('Databases tab', () => {
-  test('layout: 6 metrics, insights bar under them, attention list and storage donut', async ({ page }) => {
+  test('layout: 6 metrics, attention list and storage donut', async ({ page }) => {
     const errors = trackErrors(page);
     await start(page);
     await goTab(page, 'Data');
@@ -100,17 +82,13 @@ test.describe('Databases tab', () => {
     await expect.poll(() => page.locator('.dtable tbody tr').count()).toBe(total);
   });
 
-  test('storage donut, chart bars and sorting', async ({ page }) => {
+  test('storage donut filters the table', async ({ page }) => {
     await start(page);
     await goTab(page, 'Data');
     const total = await page.locator('.dtable tbody tr').count();
     await page.locator('.cust-side .donut-legend li', { hasText: 'Critical' }).click();
     await expect.poll(() => page.locator('.dtable tbody tr').count()).toBeLessThan(total);
     await page.getByRole('button', { name: /Clear filter/ }).click();
-    await page.locator('.insights').click();
-    await expect(page.locator('.chart-grid > .panel')).toHaveCount(3);
-    await page.locator('.chart-grid .hbars li.clickable').first().click();
-    await expect.poll(() => page.locator('.dtable tbody tr').count()).toBeLessThan(total);
   });
 
   test('per-row Check button is present', async ({ page }) => {

@@ -27,23 +27,19 @@ for (const [name, size] of [
       expect(errors).toEqual([]);
     });
 
-    test('settings and details panels fit the screen', async ({ page }) => {
+    test('settings panel fits the screen', async ({ page }) => {
       await start(page);
       await openSettings(page);
       const sheet = await page.locator('.sheet').boundingBox();
       expect(sheet!.width).toBeLessThanOrEqual(size.width + 1);
       await closePanel(page);
-      await page.locator('.cust-main .dtable tbody tr[title]').first().dblclick();
-      await expect(page.locator('.sheet')).toBeVisible();
-      expect((await page.locator('.sheet').boundingBox())!.width).toBeLessThanOrEqual(size.width + 1);
-      await closePanel(page);
     });
 
-    test('charts open and stay inside the screen', async ({ page }) => {
+    test('inline customer details stay inside the screen', async ({ page }) => {
       await start(page);
-      await page.locator('.insights').click();
-      await expect(page.locator('.chart-grid')).toBeVisible();
-      await page.waitForTimeout(700);
+      await page.locator('.cust-main .dtable tbody tr[title]').first().click();
+      await expect(page.locator('.cd-inline')).toBeVisible();
+      await page.waitForTimeout(500);
       await noSidewaysScroll(page);
     });
   });
