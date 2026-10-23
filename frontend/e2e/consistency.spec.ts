@@ -89,14 +89,14 @@ test.describe('cross-tab consistency of the archive numbers', () => {
     test.skip(sample.length === 0, 'no partial or missing account right now');
     for (const acct of sample) {
       const row = customerRows(page).filter({ hasText: acct.subscription ?? '' }).first();
-      await row.dblclick();
+      await row.click();
       const pills = page.locator('.cd-accts .pill', { hasText: acct.accountName });
       if (await pills.count()) await pills.first().click();
       const tile = page.locator('.cd-kpi', { hasText: 'Archive folders' });
       await expect(tile, acct.accountName).toContainText(`${acct.capturesWithToday}/${acct.capturesTotal}`);
       if (acct.status === 'healthy' && acct.capturesWithToday < acct.capturesTotal) await expect(page.locator('.cd-note')).toBeVisible();
-      await page.keyboard.press('Escape');
-      await expect(page.locator('.sheet')).toHaveCount(0);
+      await row.click();
+      await expect(page.locator('.cd-inline')).toHaveCount(0);
     }
   });
 

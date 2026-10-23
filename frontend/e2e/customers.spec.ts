@@ -75,62 +75,33 @@ test.describe('Customers tab', () => {
     expect(await first()).not.toBe(a);
   });
 
-  test('open details shows archive, bots and databases inline', async ({ page }) => {
+  test('clicking a customer shows all its details right below the row (no button, no side panel)', async ({ page }) => {
     const errors = trackErrors(page);
     await start(page);
+    await expect(page.getByRole('button', { name: /open details/ })).toHaveCount(0);
     await customerRows(page).first().click();
-    await page.getByRole('button', { name: /open details/ }).first().click();
+    await expect(page.locator('.sheet')).toHaveCount(0);
     await expect(page.locator('.cd-inline .cd-kpi')).toHaveCount(4);
     await expect(page.locator('.cd-inline .cd-sec-hd h4', { hasText: 'Bots' })).toBeVisible();
     await expect(page.locator('.cd-inline .cd-sec-hd h4', { hasText: 'Databases' })).toBeVisible();
+    await customerRows(page).first().click();
+    await expect(page.locator('.cd-inline')).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 
-  test('single click expands SRD accounts and "open details" opens them right below the row', async ({ page }) => {
+  test('customers are listed by their full subscription name', async ({ page }) => {
     await start(page);
-    await customerRows(page).first().click();
-    await page.getByRole('button', { name: /open details/ }).first().click();
-    await expect(page.locator('.sheet')).toHaveCount(0); // no side panel
-    await expect(page.locator('.cd-inline .cd-kpi')).toHaveCount(4);
-    await page.getByRole('button', { name: /hide details/ }).first().click();
-    await expect(page.locator('.cd-inline')).toHaveCount(0);
+    await expect(customerRows(page).first().locator('.cust-short')).toContainText(/^AZU-/);
   });
 
   test('a customer with several SRD accounts can switch accounts in the panel', async ({ page }) => {
     await start(page);
-    const multi = page.locator('.cust-main .dtable tbody tr[title]', { hasText: /[2-9] accts/ }).first();
+    const multi = page.locator('.cust-main .dtable tbody tr[title]', { hasText: /[2-9] SRD accounts/ }).first();
     test.skip((await multi.count()) === 0, 'no multi-account customer in the data');
     await multi.click();
-    await page.getByRole('button', { name: /open details/ }).first().click();
     const pills = page.locator('.cd-accts .pill');
     expect(await pills.count()).toBeGreaterThan(1);
     await pills.nth(1).click();
     await expect(pills.nth(1)).toHaveClass(/pill-on/);
-  });
-
-  test('Needs attention: item opens details inline; Overall health slices filter the table', async ({ page }) => {
-    await start(page);
-    await page.locator('.att-item').first().click();
-    await expect(page.locator('.cd-inline')).toBeVisible();
-
-    const total = await customerRows(page).count();
-    for (const label of ['Healthy', 'Critical']) {
-      const li = page.locator('.cust-side .donut-legend li', { hasText: label });
-      const n = Number(await li.locator('b').innerText());
-      await li.click();
-      await expect(page.locator('.cust-main .banner-warm')).toContainText('Showing only');
-      await expect(customerRows(page)).toHaveCount(n);
-      await clearFilter(page);
-      await expect(customerRows(page)).toHaveCount(total);
-    }
-  });
-
-  test('side column does not trap the mouse wheel (the page still scrolls over it)', async ({ page }) => {
-    await start(page);
-    const box = await page.locator('.cust-side').boundingBox();
-    expect(box).not.toBeNull();
-    await page.mouse.move(box!.x + 40, box!.y + 60);
-    await page.mouse.wheel(0, 500);
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(100);
   });
 });

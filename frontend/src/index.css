@@ -1885,3 +1885,12 @@ html[data-palette='macosglassamoled'] .wl-suggest, html[data-palette='macosglass
 [data-theme='light'] .cd-inline { background: linear-gradient(180deg, #f3effc, #fff 160px); border-color: #e0d9f2; box-shadow: 0 8px 24px rgba(98, 74, 170, 0.1); }
 [data-theme='light'] .cd-inline .cd-sec { background: #fff; }
 @media (prefers-reduced-motion: reduce) { .cd-inline { animation: none; } }
+
+/* Customers: the table now has the whole width (no side column); customer names are the full subscription names */
+.cust-layout.cust-solo { grid-template-columns: minmax(0, 1fr); }
+.cust-main .cust-short { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 13.5px; letter-spacing: 0; }
+.cust-main .cust-full { font-family: inherit; font-size: 11px; }
+.cust-row-open > td { background: color-mix(in srgb, var(--accent) 9%, transparent); }
+.cust-row-open > td:first-child { box-shadow: inset 3px 0 0 var(--accent); }
+.cd-inline { margin: 0; border-radius: 0; border-width: 0 0 0 3px; border-left-color: var(--accent); box-shadow: none; padding: 20px 22px 22px; }
+@media (max-width: 720px) { .cd-inline { margin: 0; padding: 14px; } }

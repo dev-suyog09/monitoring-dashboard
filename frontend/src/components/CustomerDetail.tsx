@@ -10,12 +10,6 @@ import LatestFiles from './LatestFiles';
 
 const fmtDate = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString() : null);
 const shortInstance = (n: string) => n.split('.').pop() ?? n;
-/** "AZU-NVM-FMC-NCC-PRD-ATD" -> "ATD". */
-const shortName = (name: string): string => {
-  const t = name.replace(/^AZU-NVM-FMC-NCC-/, '');
-  return /^(?:PRD|PROD|UAT|DEV|TST|TEST)-(.+)$/i.exec(t)?.[1] ?? t;
-};
-
 function Section({ icon, title, right, children }: { icon: string; title: string; right?: React.ReactNode; children: React.ReactNode }) {
   return (
     <section className="cd-sec">
@@ -155,8 +149,8 @@ export default function CustomerDetail({
   return (
     <div className="cd-body">
       <div className="cd-head">
-        <span className="cd-title">{shortName(row.name)}</span>
-        <span className="cd-sub mono">{account ? `${account.accountName} · ${row.name}` : row.name}</span>
+        <span className="cd-title">{row.name}</span>
+        <span className="cd-sub mono">{account ? account.accountName : 'no SRD account'}</span>
         {account && <StatusBadge status={account.status} />}
         <EnvBadge env={env} />
         {row.accounts.length > 1 && (

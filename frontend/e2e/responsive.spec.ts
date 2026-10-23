@@ -38,7 +38,6 @@ for (const [name, size] of [
     test('inline customer details stay inside the screen', async ({ page }) => {
       await start(page);
       await page.locator('.cust-main .dtable tbody tr[title]').first().click();
-      await page.getByRole('button', { name: /open details/ }).first().click();
       await expect(page.locator('.cd-inline')).toBeVisible();
       await page.waitForTimeout(500);
       await noSidewaysScroll(page);
