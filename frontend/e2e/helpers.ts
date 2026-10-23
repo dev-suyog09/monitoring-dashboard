@@ -27,6 +27,8 @@ export async function start(page: Page, opts: { settings?: object; theme?: strin
     },
     [opts.settings ?? null, opts.theme ?? null] as const,
   );
+  // tests never change the real saved checklist (lists, ticks, email) on the backend
+  await page.route(/\/api\/checklist/, (route) => (route.request().method() === 'GET' ? route.continue() : route.fulfill({ status: 200, json: { ok: true } })));
   await warmBackend(page);
   await page.goto('/');
   if (opts.settings && 'defaultTab' in opts.settings) await expect(page.locator('.mstrip .metric').first()).toBeVisible({ timeout: 60_000 });

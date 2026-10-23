@@ -4,6 +4,37 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased · Daily checklist with Teams reminders
+
+### Added
+- **Checklist tab:** every saved group (for example *Daily HC*) becomes a daily checklist. Tick each customer once it has been
+  checked, or *Mark all done*; the ring and counts show how far you are. It starts unticked every day.
+- **Teams reminders:** connect a Teams chat once (Checklist → Teams reminders: create a *Workflows → “Post to a chat when a
+  webhook request is received”* flow, paste its address). If anything on a tracked list is still unticked at your reminder
+  times (default **12 AM, 3 AM and 6 AM**, editable) you get one Teams message listing what is missing; nothing is sent once
+  everything is ticked. Pick which lists to be reminded about, switch reminders off, or send a test message. The webhook
+  address is a secret: kept on the server only, never sent back to the browser, and only Microsoft hosts (webhook.office.com,
+  logic.azure.com, powerplatform.com) are accepted, so the server cannot be pointed elsewhere.
+- **Quick schedule:** *Every N hours starting at …* fills in the reminder times for you (up to 24 a day), and **Keep reminding
+  until everything is ticked** repeats the reminder every 15 min to 4 h, from the first reminder time each day until the list is
+  ticked or midnight. If the backend was down and several reminders were due, only the newest is sent.
+- **Email reminders are built but hidden for now** (backend + form; `SHOW_EMAIL` in `ChecklistView.tsx`). Email and Teams keep
+  separate “already sent” records, so one failing never repeats the other.
+- A reminder missed because the backend was down is still sent if it is under an hour late, and is never sent twice.
+- Backend: `/api/checklist` endpoints, a one-minute reminder timer (independent of the Azure scans), SMTP mailer
+  (`SMTP_HOST`, `SMTP_PORT`, `SMTP_SECURE`, `SMTP_USER`, `SMTP_PASS`, `MAIL_FROM` in `backend/.env`); the lists, ticks and email are
+  kept in the git-ignored `backend/.cache` so they survive restarts. Inputs are validated (email header injection, sizes) and
+  mail content is HTML-escaped.
+
+## Unreleased · 3D charts (optional)
+
+### Added
+- **3D charts switch** (Settings → Appearance → *3D charts*, and a quick **3D** chip on every Visual insights bar). **Off by
+  default**, so the dashboard looks exactly as before until you turn it on.
+- With it on: donuts become a solid **exploded 3D pie** on a platform, with a callout per slice showing its share, name and
+  count (hover pulls a slice out; click still filters the tab); bars look raised; the coverage line becomes a ribbon with
+  sphere markers; the health gauge is a tilted disc. The setting is saved per browser and mirrored on `<html data-charts>`.
+
 ## 2026-10-21 · macOS themes and a wallpaper fix
 
 ### Added

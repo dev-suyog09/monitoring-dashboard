@@ -14,6 +14,8 @@ export interface Settings {
   autoCharts: boolean;
   defaultTab: 'customers' | 'archive' | 'bots' | 'dbs';
   greeting: boolean;
+  /** Solid 3D charts (exploded pie, raised bars, ribbon). Off = flat charts. */
+  charts3d: boolean;
   /** Alert tune id (see TUNES in chime.ts) and its volume, 0-100. */
   tune: string;
   volume: number;
@@ -28,6 +30,7 @@ export const DEFAULTS: Settings = {
   autoCharts: false,
   defaultTab: 'customers',
   greeting: true,
+  charts3d: false,
   tune: 'bubble',
   volume: 80,
 };
@@ -106,6 +109,7 @@ function applyToDom(s: Settings): void {
   const root = document.documentElement;
   root.setAttribute('data-sidebar', s.sidebar);
   root.setAttribute('data-density', s.density);
+  root.setAttribute('data-charts', s.charts3d ? '3d' : 'flat');
   root.setAttribute('data-motion', s.reduceMotion ? 'reduced' : 'full');
   const acc = ACCENTS.find((a) => a.id === s.accent);
   if (acc && acc.a) {
@@ -134,5 +138,5 @@ if (typeof window !== 'undefined') {
 export function useApplySettings(s: Settings): void {
   useEffect(() => {
     applyToDom(s);
-  }, [s.sidebar, s.density, s.reduceMotion, s.accent]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [s.sidebar, s.density, s.reduceMotion, s.accent, s.charts3d]); // eslint-disable-line react-hooks/exhaustive-deps
 }

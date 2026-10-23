@@ -1,0 +1,58 @@
+/* Daily checklist tab */
+.cl { display: flex; flex-direction: column; gap: 16px; }
+.cl h2, .cl h3 { margin: 0; }
+.cl-hero { flex-direction: row; align-items: center; gap: 22px; padding: 18px 22px; }
+.cl-ring { --p: 0%; flex: none; width: 84px; height: 84px; border-radius: 50%; display: grid; place-items: center; background: conic-gradient(var(--ok) var(--p), var(--card-2) 0); position: relative; transition: background 0.4s; }
+.cl-ring::before { content: ''; position: absolute; inset: 9px; border-radius: 50%; background: var(--card); }
+.cl-ring b { position: relative; font-size: 19px; font-weight: 800; color: var(--text-1); }
+.cl-hero-text h2 { font-size: 19px; font-weight: 800; color: var(--text-1); }
+.cl-hero-text p { margin: 4px 0 0; font-size: 13px; color: var(--text-2); }
+.cl-hero-text .cl-next { color: var(--text-3); font-family: inherit; }
+.cl-empty { padding: 26px; gap: 10px; align-items: flex-start; }
+.cl-empty p { margin: 0 0 6px; max-width: 62ch; color: var(--text-2); line-height: 1.55; }
+.cl-lists { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 16px; }
+.cl-list { transition: box-shadow 0.2s, border-color 0.2s; }
+.cl-list.cl-complete { border-color: color-mix(in srgb, var(--ok) 55%, var(--border)); }
+.cl-count { font-size: 12px; font-weight: 700; color: var(--text-2); }
+.cl-bar { height: 4px; background: var(--card-2); }
+.cl-bar i { display: block; height: 100%; background: var(--ok); transition: width 0.3s; }
+.cl-items { list-style: none; margin: 0 0 14px; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.cl-item { position: relative; display: flex; align-items: center; gap: 9px; padding: 9px 11px; border: 1px solid var(--border); border-radius: 10px; cursor: pointer; background: var(--card-2); transition: background 0.15s, border-color 0.15s, transform 0.12s; user-select: none; }
+.cl-item:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.cl-item input { position: absolute; opacity: 0; inset: 0; cursor: pointer; margin: 0; }
+.cl-item input:focus-visible + .cl-box { outline: 2px solid var(--accent); outline-offset: 2px; }
+.cl-box { flex: none; width: 18px; height: 18px; border-radius: 6px; border: 2px solid var(--border-strong); display: grid; place-items: center; transition: background 0.15s, border-color 0.15s; }
+.cl-item.on { border-color: color-mix(in srgb, var(--ok) 50%, var(--border)); background: color-mix(in srgb, var(--ok) 11%, var(--card)); }
+.cl-item.on .cl-box { background: var(--ok); border-color: var(--ok); }
+.cl-item.on .cl-box::after { content: ''; width: 4px; height: 8px; margin-top: -2px; border: solid #fff; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.cl-name { font-size: 13px; font-weight: 600; color: var(--text-1); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-transform: uppercase; letter-spacing: 0.02em; }
+.cl-item.on .cl-name { color: var(--text-2); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--ok) 70%, transparent); }
+.cl-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cl-actions .pill { padding: 6px 13px; font-size: 12px; }
+.cl-actions .pill:disabled { opacity: 0.45; cursor: default; }
+.cl-remind { display: inline-flex; align-items: center; gap: 7px; margin-left: auto; font-size: 12px; font-weight: 600; color: var(--text-2); cursor: pointer; }
+.cl-remind input { accent-color: var(--accent); width: 16px; height: 16px; cursor: pointer; }
+.cl-form { display: flex; flex-direction: column; gap: 18px; }
+.cl-field { display: flex; flex-direction: column; gap: 7px; font-size: 12.5px; }
+.cl-field > span { font-weight: 700; color: var(--text-1); }
+.cl-field small { color: var(--text-3); line-height: 1.5; max-width: 70ch; }
+.cl-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.cl input[type='email'], .cl input[type='time'], .cl input[type='password'] { height: 38px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--card-2); color: var(--text-1); font: inherit; font-size: 13px; }
+.cl input[type='email'], .cl input[type='password'] { flex: 1 1 260px; min-width: 0; }
+.cl input:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.cl-time { display: inline-flex; align-items: center; gap: 6px; padding: 6px 6px 6px 12px; border-radius: 999px; background: color-mix(in srgb, var(--accent) 16%, var(--card-2)); color: var(--text-1); font-size: 12.5px; font-weight: 700; }
+.cl-time button { border: none; background: transparent; color: var(--text-3); cursor: pointer; width: 20px; height: 20px; border-radius: 50%; font-size: 11px; }
+.cl-time button:hover { color: var(--text-1); background: var(--card); }
+.cl-ok { color: var(--ok-fg); font-size: 12.5px; margin: 0; }
+.cl-bad { color: var(--err-fg); font-size: 12.5px; margin: 0; }
+.cl-smtp code { background: var(--card-2); padding: 1px 6px; border-radius: 6px; font-size: 12px; }
+.cl-mail .pill:disabled { opacity: 0.45; cursor: default; }
+@media (max-width: 640px) { .cl-hero { gap: 14px; padding: 14px; } .cl-lists { grid-template-columns: 1fr; } }
+html[data-motion='reduced'] .cl * { transition: none !important; }
+.cl-steps { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; color: var(--text-2); line-height: 1.5; max-width: 74ch; }
+.cl-teams { padding-top: 16px; border-top: 1px solid var(--border); }
+.cl-inline { display: inline-flex; align-items: center; gap: 8px; font-size: 12.5px; color: var(--text-2); font-weight: 600; flex-wrap: wrap; }
+.cl select { height: 38px; padding: 0 10px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--card-2); color: var(--text-1); font: inherit; font-size: 13px; }
+.cl select:disabled { opacity: 0.5; }
+.cl-repeat { margin-top: 2px; }
+.cl-repeat input { accent-color: var(--accent); width: 16px; height: 16px; }

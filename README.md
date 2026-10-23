@@ -39,6 +39,10 @@ Database thresholds: storage **watch above 60 %** and **critical above 75 %** (f
 
 ## Features
 
+- **Daily checklist + Teams reminders:** saved groups (e.g. *Daily HC*) become a checklist to tick off each day; unticked members are sent to you in a Teams chat at 12 AM, 3 AM and 6 AM (editable). Connect it on the Checklist tab with a Teams *Workflows* webhook address (no server settings needed). The computer running the backend must be on at those times. Reminder times can be filled in with *Every N hours*, and *Keep reminding until everything is ticked* repeats them. Email reminders exist in the code (SMTP settings in `.env.example`) but are hidden for now.
+
+- **Flat or 3D charts:** charts are flat by default; turn on *3D charts* in Settings (or the 3D chip on the Visual insights bar) for an exploded 3D pie with labelled callouts, raised bars and a ribbon line.
+
 **Bots and databases are on demand.** Nothing is scanned at start-up. Opening a tab lists the inventory (cheap); the real checks run when you press **Check all**, a per-customer / per-bot / per-database **Check**, or click a result chip. After the first full check, the tab re-checks everything automatically **every 15 minutes while the page is open**.
 
 **Shared search and Groups** (same on every tab)

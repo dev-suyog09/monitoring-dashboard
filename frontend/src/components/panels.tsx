@@ -1,5 +1,7 @@
 import { useId, useState, type ReactNode } from 'react';
 import { useCountUp } from '../lib/useCountUp';
+import { useSettings } from '../lib/settings';
+import { Stage3D } from './charts';
 import type { DayPoint } from '../lib/history';
 
 /** A Grafana-style panel: title strip on top, body below. */
@@ -141,6 +143,7 @@ export function StatPanel({
  */
 export function CoverageChart({ series, monitorable }: { series: DayPoint[]; monitorable: number }) {
   const uid = useId().replace(/:/g, '');
+  const three = useSettings().charts3d;
   const [hover, setHover] = useState<number | null>(null);
 
   const W = 760;
@@ -195,6 +198,11 @@ export function CoverageChart({ series, monitorable }: { series: DayPoint[]; mon
             <stop offset="0" stopColor="var(--accent)" />
             <stop offset="1" stopColor="var(--ok)" />
           </linearGradient>
+          {three && <radialGradient id={`${uid}-sphere`} cx="0.35" cy="0.3" r="0.8">
+            <stop offset="0" stopColor="#fff" stopOpacity="0.95" />
+            <stop offset="0.42" style={{ stopColor: 'var(--ok)' }} />
+            <stop offset="1" style={{ stopColor: 'color-mix(in srgb, var(--ok) 55%, #000)' }} />
+          </radialGradient>}
           <clipPath id={`${uid}-clip`}>
             <rect className="reveal" x={0} y={0} width={W} height={H} />
           </clipPath>
@@ -224,16 +232,34 @@ export function CoverageChart({ series, monitorable }: { series: DayPoint[]; mon
         <g clipPath={`url(#${uid}-clip)`}>
           <path d={area} fill={`url(#${uid}-fill)`} />
         </g>
-        <path
-          d={line}
-          fill="none"
-          stroke={`url(#${uid}-stroke)`}
-          strokeWidth={2.75}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-          pathLength={1}
-          className="draw cov-line"
-        />
+        {/* the ribbon: copies of the line stacked downwards, each darker, give it a visible thickness */}
+        <g className="cov-3d">
+          {(three ? [7, 6, 5, 4, 3, 2, 1] : []).map((i) => (
+            <path
+              key={i}
+              d={line}
+              transform={`translate(0 ${i * 1.4})`}
+              fill="none"
+              stroke={`url(#${uid}-stroke)`}
+              strokeWidth={2.75}
+              strokeLinejoin="round"
+              strokeLinecap="round"
+              pathLength={1}
+              className="draw cov-line"
+              style={{ filter: `brightness(${(0.42 + (7 - i) * 0.05).toFixed(2)})` }}
+            />
+          ))}
+          <path
+            d={line}
+            fill="none"
+            stroke={`url(#${uid}-stroke)`}
+            strokeWidth={three ? 3.25 : 2.5}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            pathLength={1}
+            className="draw cov-line"
+          />
+        </g>
 
         {h && hover !== null && (
           <line x1={x(hover)} x2={x(hover)} y1={padT} y2={padT + plotH} stroke="var(--accent)" strokeWidth={1} strokeDasharray="3 3" opacity={0.7} />
@@ -241,15 +267,16 @@ export function CoverageChart({ series, monitorable }: { series: DayPoint[]; mon
 
         {series.map((d, i) => (
           <g key={d.date}>
+            {three && <ellipse className="pt" style={{ animationDelay: `${0.35 + i * 0.13}s` }} cx={x(i)} cy={y(d.covered) + 11} rx={hover === i ? 7 : 5} ry={1.8} fill="#000" opacity={0.14} />}
             <circle
               className="pt"
               style={{ animationDelay: `${0.35 + i * 0.13}s` }}
               cx={x(i)}
               cy={y(d.covered)}
-              r={hover === i ? 5.5 : 3.5}
-              fill="var(--ok)"
+              r={hover === i ? 6.5 : 4.6}
+              fill={three ? `url(#${uid}-sphere)` : 'var(--ok)'}
               stroke="var(--card)"
-              strokeWidth={1.5}
+              strokeWidth={1}
             />
             <text x={x(i)} y={H - 8} textAnchor="middle" fontSize={10} fill={hover === i ? 'var(--text-1)' : 'var(--text-3)'} className="mono">
               {d.date.slice(5)}
@@ -288,21 +315,24 @@ export function Gauge({ pct, sub }: { pct: number; sub: string }) {
   const tipY = 74 + r * Math.sin(theta);
   const TICKS = 48;
 
-  return (
-    <div className="gauge-wrap">
-      <svg width={168} height={168} viewBox="0 0 148 148" role="img" aria-label={`${pct}% healthy`} style={{ overflow: 'visible' }}>
+  const arc = (side: boolean) => (
+    <svg viewBox="0 0 148 148" aria-hidden style={{ overflow: 'visible' }}>
+      {!side && (
         <defs>
           <linearGradient id={`${uid}-arc`} x1="0" y1="0" x2="1" y2="1">
-            <stop offset="0" stopColor={color} stopOpacity="0.55" />
-            <stop offset="1" stopColor={color} />
+            <stop offset="0" style={{ stopColor: `color-mix(in srgb, ${color} 55%, #fff)` }} />
+            <stop offset="0.5" stopColor={color} />
+            <stop offset="1" style={{ stopColor: `color-mix(in srgb, ${color} 80%, #000)` }} />
           </linearGradient>
         </defs>
-
+      )}
+      {!side && (
         <g className="gauge-spin">
           <circle cx={74} cy={74} r={71} fill="none" stroke="var(--border-strong)" strokeWidth={1} strokeDasharray="2 7" opacity={0.7} />
         </g>
-
-        {Array.from({ length: TICKS }, (_, i) => {
+      )}
+      {!side &&
+        Array.from({ length: TICKS }, (_, i) => {
           const a = (i / TICKS) * Math.PI * 2 - Math.PI / 2;
           const on = (i / TICKS) * 100 < v;
           return (
@@ -319,30 +349,39 @@ export function Gauge({ pct, sub }: { pct: number; sub: string }) {
             />
           );
         })}
+      <circle cx={74} cy={74} r={r} fill="none" stroke="var(--card-2)" strokeWidth={12} />
+      <circle
+        className="gauge-arc"
+        style={{ ['--g' as string]: color }}
+        cx={74}
+        cy={74}
+        r={r}
+        fill="none"
+        stroke={side ? color : `url(#${uid}-arc)`}
+        strokeWidth={12}
+        strokeLinecap="round"
+        strokeDasharray={`${dash} ${circ}`}
+        transform="rotate(-90 74 74)"
+      />
+      {!side && v > 1 && <circle cx={tipX} cy={tipY} r={4} fill="#fff" opacity={0.95} style={{ filter: `drop-shadow(0 0 5px ${color})` }} />}
+    </svg>
+  );
 
-        <circle cx={74} cy={74} r={r} fill="none" stroke="var(--card-2)" strokeWidth={12} />
-        <circle
-          className="gauge-arc"
-          style={{ ['--g' as string]: color }}
-          cx={74}
-          cy={74}
-          r={r}
-          fill="none"
-          stroke={`url(#${uid}-arc)`}
-          strokeWidth={12}
-          strokeLinecap="round"
-          strokeDasharray={`${dash} ${circ}`}
-          transform="rotate(-90 74 74)"
-        />
-        {v > 1 && <circle cx={tipX} cy={tipY} r={4} fill="#fff" opacity={0.95} style={{ filter: `drop-shadow(0 0 5px ${color})` }} />}
-
-        <text x={74} y={73} textAnchor="middle" fontSize={30} fontWeight={800} fill="var(--text-1)" className="mono">
-          {Math.round(v)}%
-        </text>
-        <text x={74} y={92} textAnchor="middle" fontSize={11} fill="var(--text-3)">
-          healthy
-        </text>
-      </svg>
+  return (
+    <div className="gauge-wrap" role="img" aria-label={`${pct}% healthy`}>
+      <Stage3D
+        size={176}
+        depth={9}
+        tilt={42}
+        center={
+          <div className="dc">
+            <span className="dc-num mono">{Math.round(v)}%</span>
+            <span className="dc-label">healthy</span>
+          </div>
+        }
+      >
+        {arc}
+      </Stage3D>
       <div className="gauge-sub">{sub}</div>
     </div>
   );

@@ -159,11 +159,51 @@ test.describe('Visual insights (charts) on Customers', () => {
     await expect(page.locator('.cust-main .banner-warm')).toContainText('Showing only');
   });
 
-  test('ring centre text is readable (>= 10px) and fits the ring', async ({ page }) => {
+  test('ring centre text is readable (>= 10px), upright and fits the ring', async ({ page }) => {
     await start(page);
     await page.locator('.insights').click();
-    const label = page.locator('.chart-grid .donut-wrap svg text').nth(1);
-    expect(Number(await label.getAttribute('font-size'))).toBeGreaterThanOrEqual(10);
+    const label = page.locator('.chart-grid .donut-wrap .dc-label').first();
+    await expect(label).toBeVisible();
+    expect(await label.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))).toBeGreaterThanOrEqual(10);
     expect(((await label.textContent()) ?? '').length).toBeLessThanOrEqual(17);
   });
+
+  test('charts are flat by default: no tilted stage, no extrusion, no pie', async ({ page }) => {
+    await start(page);
+    await page.locator('.insights').click();
+    await expect(page.locator('html')).toHaveAttribute('data-charts', 'flat');
+    const stage = page.locator('.chart-grid .stage3d').first();
+    await expect(stage).toBeVisible();
+    await expect(stage).toHaveClass(/flat/);
+    expect(await stage.locator('.stage3d-layer.side').count()).toBe(0);
+    expect(await page.locator('.chart-grid .pie3').count()).toBe(0);
+  });
+
+  test('3D charts on: exploded pie with a callout (share, name, count) for every slice', async ({ page }) => {
+    await start(page, { settings: { charts3d: true } });
+    await page.locator('.insights').click();
+    const pie = page.locator('.chart-grid .pie3').first();
+    await expect(pie).toBeVisible();
+    const slices = await pie.locator('.pie3-slice').count();
+    expect(slices).toBeGreaterThanOrEqual(1);
+    expect(await pie.locator('.pie3-call').count()).toBe(slices);
+    await expect(pie.locator('.pie3-pct').first()).toHaveText(/^\d+%$/);
+    await expect(pie.locator('.pie3-sub').first()).toHaveText(/^\d+ of \d+$/);
+    // hovering a slice pulls it further out
+    const before = await pie.locator('.pie3-slice').first().evaluate((el) => getComputedStyle(el).transform);
+    await pie.locator('.pie3-slice').first().hover();
+    await expect.poll(() => pie.locator('.pie3-slice').first().evaluate((el) => getComputedStyle(el).transform)).not.toBe(before);
+  });
+
+  test('the 3D switch on the Visual insights bar flips the charts and is saved', async ({ page }) => {
+    await start(page);
+    await page.locator('.insights').click();
+    await page.getByRole('switch', { name: '3D charts' }).click();
+    await expect(page.locator('html')).toHaveAttribute('data-charts', '3d');
+    await expect(page.locator('.chart-grid .pie3').first()).toBeVisible();
+    expect(await page.evaluate(() => JSON.parse(localStorage.getItem('sam.settings') || '{}').charts3d)).toBe(true);
+    await page.getByRole('switch', { name: '3D charts' }).click();
+    await expect(page.locator('.chart-grid .pie3')).toHaveCount(0);
+  });
+
 });

@@ -117,6 +117,9 @@ export default function SettingsPanel({
         <Row label="Reduce motion" hint="Turns off entry animations, count-ups and pulsing">
           <Toggle on={settings.reduceMotion} onChange={(v) => set({ reduceMotion: v })} label="Reduce motion" />
         </Row>
+        <Row label="3D charts" hint="Solid exploded pie charts, raised bars and a ribbon line. Off keeps the flat charts">
+          <Toggle on={settings.charts3d} onChange={(v) => set({ charts3d: v })} label="3D charts" />
+        </Row>
         <Row label="Greeting" hint='Show "Good morning, name!" in the page header'>
           <Toggle on={settings.greeting} onChange={(v) => set({ greeting: v })} label="Show greeting" />
         </Row>

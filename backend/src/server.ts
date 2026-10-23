@@ -13,6 +13,30 @@ import { listLatestFiles } from './files.js';
 import { InfraStore } from './infra.js';
 import { csrfGuard, hostGuard, rateLimiter, securityHeaders } from './security.js';
 import { readCache, writeCacheSoon } from './cache.js';
+import {
+  BadInput,
+  buildMail,
+  buildTeams,
+  hasChannel,
+  isTeamsUrl,
+  teamsTestCard,
+  cleanLists,
+  doneFor,
+  takeDue,
+  emptyState,
+  isEmail,
+  mark as markChecklist,
+  markSent,
+  nextReminder,
+  pending,
+  setLists,
+  setProfile,
+  slotLabel,
+  trackedLists,
+  type ChecklistState,
+} from './checklist.js';
+import { mailConfigured, mailFrom, sendMail } from './mailer.js';
+import { sendTeams } from './teams.js';
 import type { AccountClient, BotStorageResult, CheckResponse, FilesResponse } from './types.js';
 
 const cfg = loadConfig();
@@ -289,6 +313,153 @@ app.post('/api/databases/check', async (req, res) => {
   }
 });
 
+
+// ---- Daily health-check checklist + email reminders (see checklist.ts) ----
+// The lists come from the browser (the saved groups); ticks, the email address and the reminder times are kept in the cache
+// folder so they survive the 15-minute restarts. Mutating calls are POST/PUT, so the CSRF guard above covers them.
+let checklist: ChecklistState = { ...emptyState(), ...(readCache<Partial<ChecklistState>>('checklist') ?? {}) };
+const saveChecklist = (next: ChecklistState, delay = 300) => {
+  checklist = next;
+  writeCacheSoon('checklist', checklist, delay);
+};
+const checklistJson = express.json({ limit: '128kb' });
+
+function checklistView() {
+  const today = cfg.checkDate ?? todayStr();
+  const now = new Date();
+  const next = nextReminder(checklist, now);
+  return {
+    today,
+    email: checklist.email,
+    enabled: checklist.enabled,
+    times: checklist.times,
+    repeat: checklist.repeat,
+    repeatMinutes: checklist.repeatMinutes,
+    tracked: checklist.tracked,
+    lists: checklist.lists.map((l) => ({ name: l.name, members: l.members, done: doneFor(checklist, today, l.name) })),
+    smtp: { configured: mailConfigured(), from: mailFrom() ? mailFrom().replace(/^.*</, '').replace(/>.*$/, '') : '' },
+    lastMail: checklist.lastMail,
+    // the webhook address is a secret: the browser only learns that one is saved
+    teams: { configured: isTeamsUrl(checklist.teamsUrl) },
+    lastTeams: checklist.lastTeams,
+    nextReminder: next ? next.toISOString() : null,
+  };
+}
+
+const checklistFail = (res: express.Response, err: unknown) => {
+  if (err instanceof BadInput) return res.status(400).json({ error: err.message });
+  console.error(`Checklist request failed: ${err instanceof Error ? err.message : String(err)}`);
+  return res.status(500).json({ error: 'Something went wrong on the server.' });
+};
+
+app.get('/api/checklist', (_req, res) => res.json(checklistView()));
+
+app.put('/api/checklist/lists', checklistJson, (req, res) => {
+  try {
+    saveChecklist(setLists(checklist, cleanLists((req.body as { lists?: unknown } | undefined)?.lists)));
+    res.json(checklistView());
+  } catch (err) {
+    checklistFail(res, err);
+  }
+});
+
+app.put('/api/checklist/settings', checklistJson, (req, res) => {
+  try {
+    saveChecklist(setProfile(checklist, (req.body ?? {}) as Record<string, unknown>, cfg.checkDate ?? todayStr()));
+    res.json(checklistView());
+  } catch (err) {
+    checklistFail(res, err);
+  }
+});
+
+app.post('/api/checklist/mark', checklistJson, (req, res) => {
+  const b = (req.body ?? {}) as { list?: unknown; member?: unknown; done?: unknown };
+  if (typeof b.list !== 'string' || typeof b.done !== 'boolean' || (b.member !== undefined && b.member !== null && typeof b.member !== 'string')) {
+    res.status(400).json({ error: 'Invalid request.' });
+    return;
+  }
+  try {
+    saveChecklist(markChecklist(checklist, cfg.checkDate ?? todayStr(), b.list, typeof b.member === 'string' ? b.member : null, b.done));
+    res.json(checklistView());
+  } catch (err) {
+    checklistFail(res, err);
+  }
+});
+
+app.post('/api/checklist/test-mail', async (_req, res) => {
+  if (!isEmail(checklist.email)) {
+    res.status(400).json({ error: 'Enter and save your email address first.' });
+    return;
+  }
+  try {
+    await sendMail(checklist.email, {
+      subject: 'Health check reminders are working',
+      text: `This is a test from the Godzilla Health Monitor. Reminders will be sent to this address at ${checklist.times.map(slotLabel).join(', ')} while health checks are not ticked off.`,
+      html: `<p>This is a test from the <b>Godzilla Health Monitor</b>. Reminders will be sent to this address at <b>${checklist.times.map(slotLabel).join(', ')}</b> while health checks are not ticked off.</p>`,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(`Test mail failed: ${friendlyError(err)}`);
+    res.status(502).json({ error: 'The mail server did not accept the message. Check the SMTP settings in backend/.env.' });
+  }
+});
+
+app.post('/api/checklist/test-teams', async (_req, res) => {
+  if (!isTeamsUrl(checklist.teamsUrl)) {
+    res.status(400).json({ error: 'Paste and save your Teams workflow address first.' });
+    return;
+  }
+  try {
+    await sendTeams(checklist.teamsUrl, teamsTestCard(checklist.times));
+    res.json({ ok: true });
+  } catch (err) {
+    console.error(`Test Teams message failed: ${err instanceof Error ? err.message : 'unknown error'}`);
+    res.status(502).json({ error: 'Teams did not accept the message. Check that the workflow is still turned on and the address is complete.' });
+  }
+});
+
+/**
+ * Called every minute: for each channel (email, Teams) sends a reminder for every due slot that still has unticked members.
+ * Each channel keeps its own "already sent" record, so a failing one is retried without repeating the other.
+ */
+let ticking = false;
+async function checklistTick(now = new Date()): Promise<void> {
+  if (ticking || !checklist.enabled || !hasChannel(checklist)) return;
+  ticking = true;
+  try {
+    const date = cfg.checkDate ?? todayStr(now);
+    const link = `http://localhost:${cfg.port}/`;
+    const channels: { name: 'email' | 'teams'; on: boolean; send: (todo: ReturnType<typeof pending>, slot: string) => Promise<void> }[] = [
+      { name: 'email', on: isEmail(checklist.email), send: (todo, slot) => sendMail(checklist.email, buildMail(todo, slot, date, link)) },
+      { name: 'teams', on: isTeamsUrl(checklist.teamsUrl), send: (todo, slot) => sendTeams(checklist.teamsUrl, buildTeams(todo, slot, date, link)) },
+    ];
+    for (const ch of channels.filter((c) => c.on)) {
+      const due = takeDue(checklist, date, now, ch.name);
+      if (due.state !== checklist) saveChecklist(due.state, 50);
+      for (const slot of due.slot ? [due.slot] : []) {
+        const todo = pending(checklist, date);
+        if (todo.length === 0) {
+          saveChecklist(markSent(checklist, date, slot, ch.name), 50); // everything is ticked: nothing to remind about
+          continue;
+        }
+        const key = ch.name === 'email' ? 'lastMail' : 'lastTeams';
+        try {
+          await ch.send(todo, slot);
+          saveChecklist({ ...markSent(checklist, date, slot, ch.name), [key]: { at: new Date().toISOString(), ok: true, slot } }, 50);
+          console.log(`[checklist] ${ch.name} reminder for ${slot} sent (${todo.reduce((n, t) => n + t.missing.length, 0)} unticked)`);
+        } catch (err) {
+          // not marked as sent: it is retried on the next tick until the grace period ends
+          const msg = err instanceof Error && /not set up/.test(err.message) ? err.message : ch.name === 'email' ? 'The mail server did not accept the message.' : 'Teams did not accept the message.';
+          console.error(`[checklist] ${ch.name} reminder for ${slot} failed: ${ch.name === 'email' ? friendlyError(err) : err instanceof Error ? err.message : 'unknown error'}`);
+          saveChecklist({ ...checklist, [key]: { at: new Date().toISOString(), ok: false, slot, error: msg } }, 50);
+        }
+      }
+    }
+  } finally {
+    ticking = false;
+  }
+}
+
 // Latest files inside archive/{capture}/{date}/ for one account (on demand, cached).
 // GET /api/files?account=<name>&capture=<folder>[&date=YYYY-MM-DD][&fresh=1]
 const filesCache = new Map<string, { at: number; data: FilesResponse }>();
@@ -491,6 +662,10 @@ async function start() {
 
   // Resolve egress IP fast (doesn't block startup).
   void startEgressResolver();
+
+  // Checklist reminders run on their own timer, independent of the Azure scans.
+  void checklistTick();
+  setInterval(() => void checklistTick(), 60_000).unref();
 
 
   clients = await buildAccountClients(cfg);

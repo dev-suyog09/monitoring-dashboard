@@ -178,12 +178,20 @@ test.describe('Archive tab', () => {
   test('coverage chart draws a smooth curve; health gauge and env pills work', async ({ page }) => {
     await start(page);
     await goTab(page, 'Archive');
-    await expect(page.locator('.cov-wrap path.cov-line')).toHaveCount(1);
-    const d = await page.locator('.cov-wrap path.cov-line').getAttribute('d');
+    // flat by default: a single line (3D charts adds darker copies stacked below it)
+    await expect.poll(() => page.locator('.cov-wrap path.cov-line').count()).toBe(1);
+    await expect(page.locator('.cov-wrap circle.pt').first()).toBeVisible();
+    const d = await page.locator('.cov-wrap path.cov-line').last().getAttribute('d');
     expect(d).toMatch(/C/); // cubic Bézier segments, not straight lines
     const total = await page.locator('.dtable tbody tr').count();
     await page.getByRole('button', { name: /^UAT \d+/ }).click();
     await expect.poll(() => page.locator('.dtable tbody tr').count()).toBeLessThan(total);
+  });
+
+  test('coverage ribbon is 3D when the setting is on', async ({ page }) => {
+    await start(page, { settings: { charts3d: true } });
+    await goTab(page, 'Archive');
+    await expect.poll(() => page.locator('.cov-wrap path.cov-line').count()).toBeGreaterThanOrEqual(4);
   });
 
   test('clicking an account opens the detail drawer; Esc closes it', async ({ page }) => {

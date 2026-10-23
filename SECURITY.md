@@ -42,7 +42,9 @@ Re-check any time with `npm test` (backend) and `npm run e2e` (frontend, include
 
 To show data straight after a restart, the backend keeps its last results in `backend/.cache` (git-ignored): the archive
 snapshot and the last bot / database check results. It holds the same operational data the API already serves (account and
-instance names, states, counts) and never a key, token or connection string. Delete the folder to clear it.
+instance names, states, counts) and never a key, token or connection string. The daily checklist also keeps its lists, ticks, the
+reminder email address and reminder times there (`checklist.json`); the Teams webhook address (a secret) and the SMTP password stay on the server and are never
+sent to the browser; the webhook is only called on Microsoft hosts, without following redirects. Delete the folder to clear it.
 
 ## Residual risks and recommendations
 

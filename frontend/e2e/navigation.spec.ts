@@ -7,7 +7,7 @@ test.describe('shell and navigation', () => {
     await start(page);
     await expect(page.locator('h1')).toContainText(/Good (morning|afternoon|evening), \w+!/);
     await expect(page.locator('.hdr-user')).toBeVisible();
-    await expect(page.locator('.side-item')).toHaveCount(5); // 4 tabs + settings
+    await expect(page.locator('.side-item')).toHaveCount(6); // 5 tabs (incl. checklist) + settings
     await expect(page.locator('.mstrip .metric')).toHaveCount(4);
     expect(errors).toEqual([]);
   });

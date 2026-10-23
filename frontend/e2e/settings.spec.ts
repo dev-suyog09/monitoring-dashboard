@@ -70,6 +70,12 @@ test.describe('Settings', () => {
     await page.getByRole('switch', { name: 'Reduce motion' }).click();
     await expect(html(page)).toHaveAttribute('data-motion', 'full');
 
+    await expect(html(page)).toHaveAttribute('data-charts', 'flat');
+    await page.locator('.sheet-body').getByRole('switch', { name: '3D charts' }).click();
+    await expect(html(page)).toHaveAttribute('data-charts', '3d');
+    await page.locator('.sheet-body').getByRole('switch', { name: '3D charts' }).click();
+    await expect(html(page)).toHaveAttribute('data-charts', 'flat');
+
     await page.getByRole('switch', { name: 'Show greeting' }).click();
     await expect(page.locator('h1')).toHaveText('Customers');
     await page.getByRole('switch', { name: 'Show greeting' }).click();
