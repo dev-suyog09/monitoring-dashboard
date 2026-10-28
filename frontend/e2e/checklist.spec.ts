@@ -66,36 +66,76 @@ async function openChecklist(page: Page, groups: typeof GROUP | [] = GROUP) {
 }
 
 test.describe('Daily checklist', () => {
-  test('a saved group appears as a checklist and is sent to the backend', async ({ page }) => {
+  const menu = (page: Page) => page.getByRole('navigation', { name: 'Checklist menu' });
+  const rows = (page: Page) => page.locator('.cx-row');
+
+  test('a saved group appears as a list in the menu and is sent to the backend', async ({ page }) => {
     await start(page);
     const f = await fakeBackend(page);
     await openChecklist(page);
-    const list = page.getByRole('region', { name: 'Daily HC' });
-    await expect(list).toBeVisible();
-    await expect(list.locator('.cl-item')).toHaveCount(3);
-    await expect(list.locator('.cl-count')).toHaveText('0/3');
+    await expect(menu(page).getByRole('button', { name: /Daily HC/ })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Today' })).toBeVisible();
+    await expect(rows(page)).toHaveCount(3);
+    await menu(page).getByRole('button', { name: /Daily HC/ }).click();
+    await expect(page.getByRole('heading', { name: 'Daily HC' })).toBeVisible();
+    await expect(rows(page)).toHaveCount(3);
     expect(f.lists).toEqual([{ name: 'Daily HC', members: ['adc', 'atd', 'bom'] }]);
   });
 
-  test('ticking members, mark all and clear update the counts and the ring', async ({ page }) => {
+  test('ticking customers, mark all and clear update the counts and the ring', async ({ page }) => {
     await start(page);
     const f = await fakeBackend(page);
     await openChecklist(page);
-    const list = page.getByRole('region', { name: 'Daily HC' });
-    await list.getByLabel('Daily HC: adc').check();
-    await expect(list.locator('.cl-count')).toHaveText('1/3');
-    await expect(page.locator('.cl-ring b')).toHaveText('33%');
-    await expect(page.locator('.cl-hero-text')).toContainText('1 of 3 checked');
+    const listNav = menu(page).getByRole('button', { name: /Daily HC/ });
+    await expect(listNav.locator('.cx-count')).toHaveText('3'); // still to check
+    await page.getByLabel('Daily HC: adc').check();
+    await expect(listNav.locator('.cx-count')).toHaveText('2');
+    await expect(page.locator('.cx-ring b')).toHaveText('33%');
+    await expect(page.locator('.cx-progress')).toContainText('1 of 3 checked');
     expect(f.done['Daily HC']).toEqual(['adc']);
-    await list.getByRole('button', { name: /Mark all done/ }).click();
-    await expect(list.locator('.cl-count')).toHaveText('3/3');
-    await expect(list).toHaveClass(/cl-complete/);
-    await expect(page.locator('.cl-hero-text')).toContainText('all done');
-    await list.getByLabel('Daily HC: bom').uncheck();
-    await expect(list.locator('.cl-count')).toHaveText('2/3');
-    await list.getByRole('button', { name: 'Clear' }).click();
-    await expect(list.locator('.cl-count')).toHaveText('0/3');
+    await page.getByRole('button', { name: /Mark all done/ }).click();
+    await expect(listNav.locator('.cx-count')).toHaveText('0');
+    await expect(page.locator('.cx-progress')).toContainText('all done');
+    await page.getByLabel('Daily HC: bom').uncheck();
+    await expect(listNav.locator('.cx-count')).toHaveText('1');
+    await page.getByRole('button', { name: 'Clear' }).click();
+    await expect(listNav.locator('.cx-count')).toHaveText('3');
     expect(f.done['Daily HC']).toEqual([]);
+  });
+
+  test('menu views filter the list: still to check, checked, search', async ({ page }) => {
+    await start(page);
+    await fakeBackend(page, { done: { 'Daily HC': ['adc'] }, lists: [{ name: 'Daily HC', members: ['adc', 'atd', 'bom'] }] });
+    await openChecklist(page, []);
+    await menu(page).getByRole('button', { name: /Still to check/ }).click();
+    await expect(rows(page)).toHaveCount(2);
+    await menu(page).getByRole('button', { name: /^Checked/ }).click();
+    await expect(rows(page)).toHaveCount(1);
+    await expect(rows(page).first()).toContainText('adc');
+    await menu(page).getByRole('button', { name: /All checks/ }).click();
+    await page.getByLabel('Search the checklist').fill('bo');
+    await expect(rows(page)).toHaveCount(1);
+    await expect(rows(page).first()).toContainText('bom');
+    await page.getByLabel('Search the checklist').fill('zzz');
+    await expect(page.locator('.cx-none')).toContainText('Nothing matches');
+  });
+
+  test('selecting a customer shows its details, opens it in Customers, and goes back to the reminders', async ({ page }) => {
+    await start(page);
+    await fakeBackend(page);
+    await openChecklist(page);
+    await expect(page.getByLabel('Reminders', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Details of atd' }).click();
+    const side = page.getByLabel('Customer details');
+    await expect(side.locator('.cx-big')).toHaveText('atd');
+    await expect(side).toContainText('Still to check');
+    await side.getByRole('button', { name: /Mark as checked/ }).click();
+    await expect(side).toContainText('Checked');
+    await side.getByRole('button', { name: 'Back to reminders' }).click();
+    await expect(page.getByLabel('Reminders', { exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Details of bom' }).click();
+    await page.getByLabel('Customer details').getByRole('button', { name: /Open in Customers/ }).click();
+    await expect(page.locator('.page-eyebrow')).toHaveText(/Customers/i);
   });
 
   // email UI is hidden for now (SHOW_EMAIL in ChecklistView); the backend still supports it
@@ -116,7 +156,7 @@ test.describe('Daily checklist', () => {
     await page.reload();
     await page.locator('.side-item', { hasText: 'Checklist' }).first().click();
     await expect(page.getByLabel('Your email address')).toHaveValue('suyog@example.com');
-    await expect(page.locator('.cl-hero-text .cl-next')).toContainText('Next reminder');
+    await expect(page.locator('.cx-next')).toContainText('Next reminder');
   });
 
   test('reminder times: 12 AM, 3 AM and 6 AM by default; add and remove', async ({ page }) => {
@@ -141,7 +181,7 @@ test.describe('Daily checklist', () => {
     await expect.poll(() => f.tracked).toEqual([]);
     await page.getByLabel('Send reminders').click();
     await expect.poll(() => f.enabled).toBe(false);
-    await expect(page.locator('.cl-hero-text .cl-next')).toContainText('off');
+    await expect(page.locator('.cx-next')).toContainText('off');
   });
 
   // email UI is hidden for now (SHOW_EMAIL in ChecklistView); the backend still supports it
@@ -174,7 +214,7 @@ test.describe('Daily checklist', () => {
     expect(f.teamsUrl).toContain('logic.azure.com');
     await expect(page.getByLabel('Teams workflow address')).toHaveCount(0);
     expect(await page.locator('body').innerText()).not.toContain('SECRET');
-    await expect(page.locator('.cl-hero-text .cl-next')).toContainText('Next reminder'); // Teams alone is enough
+    await expect(page.locator('.cx-next')).toContainText('Next reminder'); // Teams alone is enough
     await page.getByRole('button', { name: /Send a test message/ }).click();
     await expect(page.locator('.cl-ok').last()).toContainText('Test message sent to Teams');
     expect(f.calls.some((c) => c.url.endsWith('/test-teams'))).toBe(true);
@@ -214,7 +254,7 @@ test.describe('Daily checklist', () => {
     await start(page);
     await fakeBackend(page);
     await openChecklist(page, []);
-    await expect(page.locator('.cl-empty')).toContainText('Daily HC');
+    await expect(page.locator('.cx-empty')).toContainText('Daily HC');
     await page.getByRole('button', { name: 'Go to Customers' }).click();
     await expect(page.locator('.page-eyebrow')).toHaveText(/Customers/i);
   });
@@ -223,7 +263,7 @@ test.describe('Daily checklist', () => {
     await start(page);
     const f = await fakeBackend(page, { lists: [{ name: 'Saved earlier', members: ['x'] }] });
     await openChecklist(page, []);
-    await expect(page.getByRole('region', { name: 'Saved earlier' })).toBeVisible();
+    await expect(menu(page).getByRole('button', { name: /Saved earlier/ })).toBeVisible();
     expect(f.calls.filter((c) => c.method === 'PUT' && c.url.endsWith('/lists'))).toHaveLength(0);
   });
 });

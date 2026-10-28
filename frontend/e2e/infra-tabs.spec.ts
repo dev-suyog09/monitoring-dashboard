@@ -188,6 +188,27 @@ test.describe('Archive tab', () => {
     await expect.poll(() => page.locator('.dtable tbody tr').count()).toBeLessThan(total);
   });
 
+  test('PROD then "Missing today": only PROD accounts are listed and counted; the environment stays selected', async ({ page }) => {
+    await start(page);
+    await goTab(page, 'Archive');
+    const prod = page.getByRole('button', { name: /^PROD \d+/ });
+    await prod.click();
+    await expect(prod).toHaveClass(/pill-on/);
+    const card = page.locator('.stat', { hasText: 'Missing today' });
+    const shownBefore = await page.locator('.dtable tbody tr').count();
+    await card.click();
+    await expect(prod).toHaveClass(/pill-on/); // choosing a status must not drop the environment
+    const names = (await page.locator('.dtable tbody tr').allInnerTexts()).map((t) => t.toLowerCase());
+    expect(names.length).toBeLessThanOrEqual(shownBefore);
+    for (const n of names) expect(n, 'every listed account is PROD').toMatch(/prd|prod/);
+    for (const n of names) expect(n).not.toMatch(/uat|dev|tst/);
+    // the same with UAT: no PROD account sneaks in
+    await page.getByRole('button', { name: /^UAT \d+/ }).click();
+    await expect(prod).not.toHaveClass(/pill-on/);
+    const uat = (await page.locator('.dtable tbody tr').allInnerTexts()).map((t) => t.toLowerCase());
+    for (const n of uat) expect(n).not.toMatch(/prd|prod/);
+  });
+
   test('coverage ribbon is 3D when the setting is on', async ({ page }) => {
     await start(page, { settings: { charts3d: true } });
     await goTab(page, 'Archive');

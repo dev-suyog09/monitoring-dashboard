@@ -84,7 +84,10 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  // Archive tab: a status card (Healthy / Missing today / ...) and an environment pill (PROD / UAT / DEV) apply together,
+  // so "PROD" then "Missing today" lists only the PROD accounts that are missing.
   const [filter, setFilter] = useState<Filter>('all');
+  const [archiveEnv, setArchiveEnv] = useState<'all' | 'PRD' | 'UAT' | 'DEV'>('all');
   // Set by clicking the "at risk" box: the accounts table then lists just the at-risk accounts (missing today or error).
   const [atRiskOnly, setAtRiskOnly] = useState(false);
   const tableRef = useRef<HTMLDivElement>(null);
@@ -305,7 +308,7 @@ export default function App() {
 
   // PROD / UAT / DEV selected -> the stat cards, Health today and the coverage chart describe just that
   // environment (no environment selected = every account in the watchlist).
-  const envScope = filter === 'PRD' || filter === 'UAT' || filter === 'DEV' ? filter : null;
+  const envScope = archiveEnv === 'all' ? null : archiveEnv;
   const scoped = useMemo(
     () => (envScope ? watched.filter((r) => detectEnv(r.accountName) === envScope) : watched),
     [watched, envScope],
@@ -343,7 +346,7 @@ export default function App() {
   const showAtRisk = () => {
     if (atRiskList.length === 0) return;
     setAtRiskOnly(true);
-    setFilter((f) => (f === 'PRD' || f === 'UAT' || f === 'DEV' ? f : 'all')); // keep an environment filter, drop a status one
+    setFilter('all'); // drop a status filter; the environment filter stays
     setTimeout(() => tableRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
   };
 
@@ -471,15 +474,11 @@ export default function App() {
       case 'missing_today':
       case 'no_data':
       case 'error':
-        return watched.filter((r) => r.status === filter);
-      case 'PRD':
-      case 'UAT':
-      case 'DEV':
-        return watched.filter((r) => detectEnv(r.accountName) === filter);
+        return scoped.filter((r) => r.status === filter); // scoped = the selected environment (if any) within the watchlist
       default:
-        return watched;
+        return scoped;
     }
-  }, [watched, filter, atRiskOnly, atRiskList]);
+  }, [scoped, filter, atRiskOnly, atRiskList]);
 
   const customerDetailRow = customerDetail ? (customerRows.find((r) => r.key === customerDetail.key) ?? null) : null;
   const selectedAccount: CheckResult | null = selected
@@ -775,7 +774,7 @@ export default function App() {
 
         {view === 'checklist' && (
           <Suspense fallback={<div className="skeleton" style={{ height: 260 }} />}>
-            <ChecklistView groups={groups} defaultEmail={me?.email} onOpenCustomers={() => goTo('customers')} />
+            <ChecklistView groups={groups} defaultEmail={me?.email} onOpenCustomers={() => goTo('customers')} onOpenCustomer={(t) => { setTerms([t]); goTo('customers'); }} />
           </Suspense>
         )}
 
@@ -859,8 +858,8 @@ export default function App() {
             return (
               <button
                 key={e}
-                className={`pill ${filter === e ? 'pill-on' : ''}`}
-                onClick={() => setFilter((f) => (f === e ? 'all' : e))}
+                className={`pill ${archiveEnv === e ? 'pill-on' : ''}`}
+                onClick={() => setArchiveEnv((cur) => (cur === e ? 'all' : e))}
               >
                 {e === 'PRD' ? 'PROD' : e} {c}
               </button>
@@ -871,11 +870,12 @@ export default function App() {
               ⚠ At risk only ✕
             </button>
           )}
-          {filter !== 'all' && (
+          {(filter !== 'all' || archiveEnv !== 'all') && (
             <button
               className="pill"
               onClick={() => {
                 setFilter('all');
+                setArchiveEnv('all');
                 setAtRiskOnly(false);
               }}
             >

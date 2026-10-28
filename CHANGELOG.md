@@ -4,6 +4,14 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased · Archive: environment filter now combines with the status cards
+
+### Fixed
+- **Archive tab: "PROD" then "Missing today" also listed UAT accounts.** The environment pills (PROD / UAT / DEV) and the status
+  cards (Healthy / Missing today / Errors / No SRD) shared one filter, so choosing a card dropped the environment. They are now
+  separate and apply together: PROD + Missing today lists and counts only PROD accounts that are missing, and the PROD pill
+  stays selected. *Clear filter* resets both. A browser test (`infra-tabs.spec.ts`) covers it.
+
 ## Unreleased · Daily checklist with Teams reminders
 
 ### Added
@@ -15,6 +23,10 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
   everything is ticked. Pick which lists to be reminded about, switch reminders off, or send a test message. The webhook
   address is a secret: kept on the server only, never sent back to the browser, and only Microsoft hosts (webhook.office.com,
   logic.azure.com, powerplatform.com) are accepted, so the server cannot be pointed elsewhere.
+- **Task-app layout for the Checklist tab:** a menu on the left (All checks / Still to check / Checked, then each list with a
+  colour and its remaining count, search, and Reminders), the customers to check in the middle (tick, or click a row), and on the
+  right either that customer's details (list, status, *Open in Customers*, *Mark as checked*) or the reminder settings. It
+  collapses to one column on phones.
 - **Quick schedule:** *Every N hours starting at …* fills in the reminder times for you (up to 24 a day), and **Keep reminding
   until everything is ticked** repeats the reminder every 15 min to 4 h, from the first reminder time each day until the list is
   ticked or midnight. If the backend was down and several reminders were due, only the newest is sent.
