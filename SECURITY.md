@@ -46,7 +46,32 @@ instance names, states, counts) and never a key, token or connection string. The
 reminder email address and reminder times there (`checklist.json`); the Teams webhook address (a secret) and the SMTP password stay on the server and are never
 sent to the browser; the webhook is only called on Microsoft hosts, without following redirects. Delete the folder to clear it.
 
+## Concurrent calls and the daily checklist
+
+These features add endpoints, so they follow the same rules as the rest of the API (loopback only, host guard, CSRF header and
+origin check on every POST/PUT, no CORS, rate limits) and were probed on a throwaway backend (32 checks, all passing):
+
+- **Concurrent calls** (`POST /api/calls/check`, `/api/calls/series`): read-only. The subscription must be a GUID, the range, metric
+  and aggregation must come from fixed lists, and the metric name in the query comes from a catalogue, so no request text ever
+  reaches a query. Rate-limited (40 a minute) because each distinct request reads Application Insights. Nothing runs at start-up
+  or on a timer. As with the other tabs, the backend acts as the signed-in `az login` identity, so it can only read what that
+  identity may read.
+- **Daily checklist** (`/api/checklist/*`): request bodies are limited to 128 kB and validated (list sizes, times, email without
+  line breaks, reminder interval from a fixed list); lists are kept as arrays, never as object keys.
+- **Teams reminders:** the webhook address is a secret. It is only accepted for Microsoft hosts over https (webhook.office.com,
+  logic.azure.com, powerplatform.com; no ports or credentials in the URL), is only ever sent to that host with redirects turned
+  off, is never returned to the browser or written to a log or an error message, and a test proves it is absent from every answer.
+- **CSV export** neutralises cells that start with `=`, `+`, `-` or `@`, so a strange bot name cannot become a spreadsheet formula.
+- One shared Azure credential is used for the whole process (its token lives only in memory); this fixed a 4 s delay per request
+  and does not widen what the backend can do.
+
 ## Residual risks and recommendations
+
+- **The Teams address sits in plain text in `backend/.cache/checklist.json`** (git-ignored). Anyone who can read that file can post
+  into that Teams chat, nothing more. Keep the folder inside your user profile; if it leaks, delete the Teams flow and make a new
+  one. (Email, if switched on, keeps its SMTP password in `backend/.env` the same way.)
+- **Dependency advisories:** `npm audit` reports 3 moderate findings in `uuid`, pulled in by the Azure sign-in library. They only
+  matter when a caller passes a buffer to `uuid` v3/v5/v6, which this app does not. Dependabot will offer the fix when it is released.
 
 - Anyone who can use your logged-in browser or sit at your machine can use the dashboard: it is as trusted as your
   desktop session. Lock the screen.

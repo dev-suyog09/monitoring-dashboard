@@ -4,6 +4,80 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased · Security review of the new features
+
+### Fixed
+- **Dependencies:** applied the compatible fixes for two high-severity advisories (`body-parser` denial of service, which started
+  to matter once the checklist read request bodies, and an `msal-node` auth-code-flow issue this app does not use).
+- **Rate limit** on `/api/calls/series` (40 a minute): it was only under the general limit, so a script could have made the
+  backend query Application Insights hundreds of times a minute.
+- **Oversized or malformed request bodies** now answer 413 / 400 instead of a generic 500.
+- **CSV export** neutralises spreadsheet formulas in names that start with `=`, `+`, `-` or `@`.
+- `SECURITY.md` documents the new endpoints, the Teams secret handling and the remaining risks.
+
+## Unreleased · Premium customer details panel
+
+### Changed
+- **The customer details panel is much wider and redesigned:** it now takes about 84% of the screen (it used half), with a
+  gradient header and customer avatar, four headline cards (archive folders, bot storage, instances, databases) with icons and
+  progress bars, and a two-column body (archive and bot storage on the left, bots and databases on the right) that falls back to
+  one column on narrow screens. Softer rounded cards, plain-sentence headings and more spacing throughout.
+- **Concurrent calls in the panel:** one clear "Not loaded" call-to-action, a segmented period picker, four stat cards (calls
+  now, peak, busiest bot load, bots reporting), a smooth chart with a line per recording group, and a card per group with a bot
+  table (the six busiest bots, "show all" for the rest).
+
+### Fixed
+- **Concurrent calls were slow (6 to 9 seconds per request).** Measured: the queries took under a second; the time went on a
+  fresh Azure sign-in token (about 4 s) fetched on *every* request, because each request built a new credential. The backend now
+  shares one credential, and remembers which bot Application Insights a customer has for 10 minutes. Requests now take about
+  0.5 to 1 second; asking the same thing again within 30 seconds is instant. (Right after a backend restart, while it runs its
+  start-up scan, the first call can still be slower.)
+- The quick Concurrent calls trend no longer drops to zero at the right edge (the newest, still-filling time slot is left out),
+  and it now averages each bot per time slot instead of adding up each bot's busiest moment, so *Peak* and *Calls now* agree.
+
+## Unreleased · Concurrent Calls tab
+
+### Added
+- **Concurrent calls** tab in the sidebar: a full page for the bots' concurrent-call numbers, read from their Application
+  Insights **only when you press Load** (opening the tab, picking customers or changing a control before the first Load reads
+  nothing; after a Load, changing the metric, aggregation or range re-reads, and an optional live refresh can be switched on).
+- **Settings like a metrics explorer:** customers (up to 4 at once), metric (concurrent calls, gross, stream load %, audio /
+  video / screen-share / file streams, recorded participants, discarded calls, call-setup and join time, media in local
+  storage), aggregation (Avg / Max / Min; Avg is the default because Max adds up each bot's busiest moment and overstates the
+  total), time range (1 h, 6 h, 24 h, 3 d, 7 d) and split by (none, recording group, bot instance).
+- **Filters on what is loaded** (no new request): switch recording groups on or off, bot-name search, only bots that reported in
+  the last 10 minutes, hide bots with no activity.
+- **Calm, easy-on-the-eyes design:** soft rounded cards, quiet dotted grid, thin smooth curves in muted colours, plain-sentence
+  headings with a short description under each, generous spacing, and a big "now" number. A **What stands out** card says in
+  words what the numbers mean (rising or falling against 30 minutes ago, the busiest moment and how far above average, which
+  recording group carries the load, whether any bot has gone quiet). The chart marks the peak and draws the average as a dashed
+  line; the heatmap has a colour scale.
+- **Polished charts:** headline numbers (now, peak and when, average, lowest, bots reporting, last reading), a time-series chart
+  with a hover guide, tooltip and clickable legend, recording-group and busiest-bot bars (click to focus), a heatmap of every
+  bot over time, a sortable bot table with trend lines and a quiet-bot warning, and **CSV export**.
+- *Full view ↗* in a customer's details panel opens this tab with that customer chosen (still needs Load).
+- Backend: `POST /api/calls/series` (subscription, range, metric key and aggregation are validated against allow-lists; the
+  metric name in the query comes from a fixed catalogue; 30 s answer cache).
+
+## Unreleased · "Archive missing" card on the Customers tab
+
+### Added
+- **Archive missing** card next to *Archive complete* on the Customers tab: the number of customers that are not fully
+  archived today (some SRD account has nothing archived, or could not be read), with how many of them have errors. Click it to
+  list just those customers; click again to clear. *Archive complete* + *Archive missing* = customers with an SRD account.
+
+## Unreleased · Concurrent calls per bot (on demand)
+
+### Added
+- **Concurrent calls** section in the customer details panel (Customers tab → open details). Press **Check concurrent calls**
+  to read, live from the bots' own Application Insights, how many calls each recording group handles at the same time:
+  calls now, peak (the busiest moment of the whole group), stream load %, a trend line, and one row per bot instance with its
+  last reading time (a bot that has gone quiet for 10+ minutes is flagged). Pick the last hour, 6 hours or 24 hours.
+  Meant for the case where a call is missing from the archive and you want to see whether the bot was busy or silent.
+- **On demand only:** nothing is requested when the dashboard starts, when a panel opens or on the auto re-check timer. The
+  backend endpoint `POST /api/calls/check` takes one subscription (= one customer) and a period, validates both, keeps the
+  answer for 30 s, and reads only the `botAppInsights*` resources of that subscription (read-only).
+
 ## Unreleased · Archive: environment filter now combines with the status cards
 
 ### Fixed

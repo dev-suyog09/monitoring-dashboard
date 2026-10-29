@@ -8,7 +8,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node --use-system-ca dist/server.js",
     "typecheck": "tsc --noEmit",
-    "test": "node --import tsx --test src/checker.test.ts src/security.test.ts src/cache.test.ts src/checklist.test.ts"
+    "test": "node --import tsx --test src/checker.test.ts src/security.test.ts src/cache.test.ts src/checklist.test.ts src/calls.test.ts"
   },
   "dependencies": {
     "@azure/arm-resourcegraph": "^5.0.0",

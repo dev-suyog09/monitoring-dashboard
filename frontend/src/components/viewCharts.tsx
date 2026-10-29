@@ -14,7 +14,7 @@ const ACCENT = 'var(--accent)';
 /* ──────────────────────────── Customers ──────────────────────────── */
 
 export type CustPick =
-  | 'arch-ok' | 'arch-warn' | 'arch-err' | 'arch-none'
+  | 'arch-ok' | 'arch-missing' | 'arch-warn' | 'arch-err' | 'arch-none'
   | 'bot-ok' | 'bot-warn' | 'bot-down' | 'bot-unchecked'
   | 'db-ok' | 'db-issue' | 'db-unchecked'
   | 'health-ok' | 'health-warn' | 'health-err' | 'health-idle';

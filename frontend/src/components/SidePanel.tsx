@@ -13,6 +13,8 @@ export default function SidePanel({
   children,
   footer,
   width = 420,
+  icon,
+  className = '',
 }: {
   title: string;
   subtitle?: string;
@@ -20,6 +22,10 @@ export default function SidePanel({
   children: ReactNode;
   footer?: ReactNode;
   width?: number | string;
+  /** A tile shown before the title (an avatar, an icon). */
+  icon?: ReactNode;
+  /** Extra class on the panel, for panels that need their own look. */
+  className?: string;
 }) {
   const [closing, setClosing] = useState(false);
 
@@ -39,13 +45,14 @@ export default function SidePanel({
     <>
       <div className={`drawer-backdrop ${closing ? 'backdrop-out' : ''}`} onClick={close} />
       <aside
-        className={`drawer sheet ${closing ? 'drawer-out' : ''}`}
+        className={`drawer sheet ${className} ${closing ? 'drawer-out' : ''}`}
         style={{ width: `min(${typeof width === 'number' ? `${width}px` : width}, 100%)` }}
         role="dialog"
         aria-label={title}
       >
         <div className="sheet-hd">
-          <div style={{ minWidth: 0 }}>
+          {icon && <span className="sheet-icon">{icon}</span>}
+          <div style={{ minWidth: 0, flex: 1 }}>
             <div className="sheet-title">{title}</div>
             {subtitle && <div className="sheet-sub">{subtitle}</div>}
           </div>

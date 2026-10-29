@@ -5,7 +5,9 @@ import { dbIssues } from '../lib/customers';
 import { instanceLevel, LEVEL_SCOPE } from '../lib/instanceState';
 import { detectEnv } from '../lib/ui';
 import { EnvBadge, StatusBadge } from './Badges';
+import '../detail.css';
 import BotStoragePanel from './BotStoragePanel';
+import CallsSection from './CallsSection';
 import LatestFiles from './LatestFiles';
 import SidePanel from './SidePanel';
 
@@ -33,12 +35,22 @@ function Section({ icon, title, right, children }: { icon: string; title: string
 }
 
 /** One headline number in the summary strip. */
-function Kpi({ label, value, sub, scope }: { label: string; value: string; sub: string; scope: string }) {
+function Kpi({ label, value, sub, scope, icon, pct }: { label: string; value: string; sub: string; scope: string; icon: string; pct?: number | null }) {
   return (
     <div className={`cd-kpi ${scope}`}>
-      <span className="cd-kpi-label">{label}</span>
-      <span className="cd-kpi-val mono">{value}</span>
+      <span className="cd-kpi-top">
+        <span className="cd-kpi-label">{label}</span>
+        <span className="cd-kpi-ico" aria-hidden>
+          {icon}
+        </span>
+      </span>
+      <span className="cd-kpi-val">{value}</span>
       <span className="cd-kpi-sub">{sub}</span>
+      {pct !== undefined && pct !== null && (
+        <span className="cd-kpi-bar" aria-hidden>
+          <i style={{ width: `${Math.max(3, Math.min(100, pct))}%` }} />
+        </span>
+      )}
     </div>
   );
 }
@@ -115,6 +127,7 @@ export default function CustomerDetail({
   checkDisabled,
   onCheckBots,
   onCheckDbs,
+  onOpenCalls,
   onClose,
 }: {
   row: CustomerRow;
@@ -130,6 +143,8 @@ export default function CustomerDetail({
   checkDisabled: { bots: boolean; dbs: boolean };
   onCheckBots: () => void;
   onCheckDbs: () => void;
+  /** Open the Concurrent Calls tab with this customer selected. */
+  onOpenCalls?: (subscriptionId: string) => void;
   onClose: () => void;
 }) {
   const account = row.accounts.find((a) => a.accountName === accountName) ?? row.accounts[0] ?? null;
@@ -156,7 +171,14 @@ export default function CustomerDetail({
   const dbIssueCount = issueMap.filter((x, i) => databases[i]!.checkedAt && x.length > 0).length;
 
   return (
-    <SidePanel title={`${shortName(row.name)}${row.env !== 'OTHER' ? ` · ${row.env}` : ''}`} subtitle={account ? `${account.accountName} · ${row.name}` : row.name} onClose={onClose} width="clamp(560px, 50vw, 1100px)">
+    <SidePanel
+      title={`${shortName(row.name)}${row.env !== 'OTHER' ? ` · ${row.env}` : ''}`}
+      subtitle={account ? `${account.accountName} · ${row.name}` : row.name}
+      onClose={onClose}
+      width="clamp(720px, 84vw, 1560px)"
+      className="sheet-xl"
+      icon={<span className="cd-avatar">{shortName(row.name).replace(/[^A-Za-z0-9]/g, '').slice(0, 3).toUpperCase() || '?'}</span>}
+    >
       <div className="cd-head">
         {account && <StatusBadge status={account.status} />}
         <EnvBadge env={env} />
@@ -174,30 +196,39 @@ export default function CustomerDetail({
       <div className="cd-kpis">
         <Kpi
           label="Archive folders"
+          icon="🗄️"
+          pct={account && !accErr && account.capturesTotal > 0 ? cov : null}
           value={!account || accErr ? '—' : `${account.capturesWithToday}/${account.capturesTotal}`}
           sub={!account ? (archiveWarming ? 'archive scan warming up' : 'no SRD account') : accErr ? 'could not read' : account.capturesWithToday === account.capturesTotal ? 'all have today' : `${account.capturesTotal - account.capturesWithToday} empty today`}
           scope={!account ? 'st-idle' : accErr ? 'st-err' : account.capturesWithToday === account.capturesTotal ? 'st-ok' : account.capturesWithToday === 0 ? 'st-err' : 'st-warn'}
         />
         <Kpi
           label="Bot storage"
+          icon="🧺"
           value={!account?.bot || account.bot.status === 'none' ? '—' : account.bot.status === 'clean' ? 'Clean' : account.bot.status === 'stuck' ? `${account.bot.stuckCount} stuck` : 'Error'}
           sub={account?.bot ? `last ${account.bot.windowDays} days` : 'no bot storage'}
           scope={!account?.bot || account.bot.status === 'none' ? 'st-idle' : account.bot.status === 'clean' ? 'st-ok' : account.bot.status === 'stuck' ? 'st-err' : 'st-warn'}
         />
         <Kpi
           label="Instances"
+          icon="🤖"
+          pct={botsChecked > 0 && instances.length > 0 ? (up / instances.length) * 100 : null}
           value={botsChecked > 0 ? `${up}/${instances.length}` : '—'}
           sub={botsChecked > 0 ? (down > 0 ? `${down} down` : 'all up') : 'not checked'}
           scope={botsChecked === 0 ? 'st-idle' : down > 0 ? 'st-err' : up < instances.length ? 'st-warn' : 'st-ok'}
         />
         <Kpi
           label="Databases"
+          icon="🛢️"
+          pct={dbsChecked > 0 && databases.length > 0 ? ((dbsChecked - dbIssueCount) / databases.length) * 100 : null}
           value={dbsChecked > 0 ? `${dbsChecked - dbIssueCount}/${databases.length}` : '—'}
           sub={dbsChecked > 0 ? (dbIssueCount > 0 ? `${dbIssueCount} with issues` : 'all ok') : 'not checked'}
           scope={dbsChecked === 0 ? 'st-idle' : dbIssueCount > 0 ? 'st-err' : dbsChecked < databases.length ? 'st-warn' : 'st-ok'}
         />
       </div>
 
+      <div className="cd-layout">
+        <div className="cd-col">
       {account?.bot && <BotStoragePanel bot={account.bot} />}
 
       {account && accErr && <div className="cd-err">{account.error}</div>}
@@ -237,7 +268,8 @@ export default function CustomerDetail({
         </Section>
       )}
 
-      <div className="cd-grid">
+        </div>
+        <div className="cd-col">
         <Section
           icon="🤖"
           title="Bots"
@@ -300,6 +332,12 @@ export default function CustomerDetail({
             databases.map((d, i) => <DbCard key={`${d.server}/${d.name}`} d={d} issues={issueMap[i]!} />)
           )}
         </Section>
+
+        </div>
+      </div>
+      <div className="cd-wide">
+        {/* on demand only: nothing is requested until its button is pressed */}
+        <CallsSection key={row.subscriptionId} subscriptionId={row.subscriptionId} onOpenFull={onOpenCalls ? () => onOpenCalls(row.subscriptionId) : undefined} />
       </div>
     </SidePanel>
   );

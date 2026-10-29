@@ -118,6 +118,7 @@ export default function CustomersView({
 
   const PICKS: Record<CustPick, { text: string; test: (r: CustomerRow) => boolean }> = {
     'arch-ok': { text: 'customers with all archives present today', test: (r) => r.archive.monitorable > 0 && r.archive.healthy === r.archive.monitorable },
+    'arch-missing': { text: 'customers with archives missing today (including errors)', test: (r) => r.archive.monitorable > 0 && r.archive.healthy < r.archive.monitorable },
     'arch-warn': { text: 'customers with archives missing today', test: (r) => r.archive.monitorable > 0 && r.archive.healthy < r.archive.monitorable && r.archive.errors === 0 },
     'arch-err': { text: 'customers with archive errors', test: (r) => r.archive.monitorable > 0 && r.archive.healthy < r.archive.monitorable && r.archive.errors > 0 },
     'arch-none': { text: 'customers without an SRD account', test: (r) => r.accounts.length === 0 || r.archive.monitorable === 0 },
@@ -136,6 +137,8 @@ export default function CustomersView({
 
   const kpi = useMemo(() => {
     let archiveOk = 0;
+    let archiveMissing = 0;
+    let archiveErr = 0;
     let partialCustomers = 0;
     let botsDown = 0;
     let botsChecked = 0;
@@ -145,6 +148,9 @@ export default function CustomersView({
       if (r.archive.monitorable > 0 && r.archive.healthy === r.archive.monitorable) {
         archiveOk++;
         if (r.archive.partialFolders > 0) partialCustomers++;
+      } else if (r.archive.monitorable > 0) {
+        archiveMissing++; // some account has nothing archived today (or could not be read)
+        if (r.archive.errors > 0) archiveErr++;
       }
       botsDown += r.bots.down;
       botsChecked += r.bots.checked;
@@ -159,7 +165,7 @@ export default function CustomersView({
       up += r.bots.started;
       instances += r.bots.instances;
     }
-    return { archiveOk, partialCustomers, botsDown, botsChecked, dbIssues, dbChecked, withSrd, up, instances };
+    return { archiveOk, archiveMissing, archiveErr, partialCustomers, botsDown, botsChecked, dbIssues, dbChecked, withSrd, up, instances };
   }, [rows]);
 
   /** Customers ranked by how much is wrong, each with the pills explaining why. */
@@ -278,6 +284,22 @@ export default function CustomersView({
           tone: archiveWarming || kpi.withSrd === 0 ? 'idle' : kpi.archiveOk === kpi.withSrd ? 'ok' : 'warn',
           active: pick === 'arch-ok',
           onClick: () => setPick((c) => (c === 'arch-ok' ? null : 'arch-ok')),
+        },
+        {
+          key: 'arch-missing',
+          label: 'Archive missing',
+          value: archiveWarming ? '…' : kpi.archiveMissing,
+          ring: kpi.withSrd ? (kpi.archiveMissing / kpi.withSrd) * 100 : 0,
+          sub: archiveWarming
+            ? 'scanning archive…'
+            : kpi.withSrd === 0
+              ? 'no archive data'
+              : kpi.archiveMissing === 0
+                ? '✓ none missing'
+                : `▼ of ${kpi.withSrd} with SRD${kpi.archiveErr > 0 ? ` · ${kpi.archiveErr} with errors` : ''}`,
+          tone: archiveWarming || kpi.withSrd === 0 ? 'idle' : kpi.archiveMissing === 0 ? 'ok' : 'warn',
+          active: pick === 'arch-missing',
+          onClick: () => setPick((c) => (c === 'arch-missing' ? null : 'arch-missing')),
         },
         {
           key: 'inst',

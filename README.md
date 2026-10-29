@@ -39,6 +39,7 @@ Database thresholds: storage **watch above 60 %** and **critical above 75 %** (f
 
 ## Features
 
+- **Concurrent Calls tab (on demand):** a full page of charts, filters and a bot table for the bots' concurrent calls, read from their Application Insights only when you press *Load* (nothing is loaded at start-up). A quick version also lives in each customer's details panel. See the changelog.
 - **Daily checklist + Teams reminders:** saved groups (e.g. *Daily HC*) become a checklist to tick off each day; unticked members are sent to you in a Teams chat at 12 AM, 3 AM and 6 AM (editable). Connect it on the Checklist tab with a Teams *Workflows* webhook address (no server settings needed). The computer running the backend must be on at those times. Reminder times can be filled in with *Every N hours*, and *Keep reminding until everything is ticked* repeats them. Email reminders exist in the code (SMTP settings in `.env.example`) but are hidden for now.
 
 - **Flat or 3D charts:** charts are flat by default; turn on *3D charts* in Settings (or the 3D chip on the Visual insights bar) for an exploded 3D pie with labelled callouts, raised bars and a ribbon line.

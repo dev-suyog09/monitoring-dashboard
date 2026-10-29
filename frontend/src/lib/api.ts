@@ -108,3 +108,34 @@ export const fetchDatabases = (signal?: AbortSignal) => {
 /** Live-check databases: no scope = all; server = one server; server+db = one database. */
 export const checkDatabases = (scope: { server?: string; db?: string; subscriptionId?: string } = {}) =>
   postJson<DatabasesResponse>(`/api/databases/check${qs(scope)}`);
+
+export interface CallInstance {
+  instance: string;
+  calls: number | null;
+  gross: number | null;
+  load: number | null;
+  peak: number | null;
+  avg: number | null;
+  lastSeen: string | null;
+}
+export interface CallGroup {
+  name: string;
+  resourceGroup: string;
+  calls: number | null;
+  peak: number | null;
+  load: number | null;
+  lastSeen: string | null;
+  instances: CallInstance[];
+  series: { t: string; v: number }[];
+  error?: string;
+}
+export interface CallsResponse {
+  subscriptionId: string;
+  hours: number;
+  generatedAt: string;
+  groups: CallGroup[];
+  note?: string;
+}
+
+/** Concurrent calls per bot recording group, read live from Application Insights. ON DEMAND ONLY: call this from a click, never on load. */
+export const checkCalls = (subscriptionId: string, hours: number) => postJson<CallsResponse>(`/api/calls/check${qs({ subscriptionId, hours: String(hours) })}`);

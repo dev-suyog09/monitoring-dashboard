@@ -1928,3 +1928,4 @@ html[data-motion='reduced'] .pie3-pop { animation: none; }
 .ins-3d.on { background: var(--accent); border-color: var(--accent); color: #fff; }
 /* on a phone the 3D chip sits in the corner of the bar instead of in its middle */
 @media (max-width: 640px) { .insights { position: relative; } .ins-3d { position: absolute; top: 8px; right: 10px; margin: 0; } }
+

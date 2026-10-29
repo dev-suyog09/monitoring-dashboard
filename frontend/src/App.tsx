@@ -14,6 +14,7 @@ import { MODE_LABEL, useTheme } from './lib/theme';
 import { coverageSeries, isMonitorable } from './lib/history';
 import { loadGroups, saveGroups, type WatchGroup } from './lib/watchlist';
 import { syncLists } from './lib/checklist';
+import type { CustomerOption } from './lib/calls';
 import { Panel, StatPanel, CoverageChart, Gauge } from './components/panels';
 import WatchlistSearch, { type CustomerSuggestion } from './components/WatchlistSearch';
 import { matchesWatch, matchesFilter, envOf, customerOf, type EnvName } from './lib/watchMatch';
@@ -34,6 +35,7 @@ const NeedsIpPanel = lazyPreload(() => import('./components/NeedsIpPanel'));
 const BotsView = lazyPreload(() => import('./components/BotsView'));
 const DatabasesView = lazyPreload(() => import('./components/DatabasesView'));
 const ChecklistView = lazyPreload(() => import('./components/ChecklistView'));
+const CallsView = lazyPreload(() => import('./components/CallsView'));
 
 /** Shown for the instant a not-yet-loaded tab is being fetched. */
 const TabSkeleton = () => (
@@ -47,7 +49,7 @@ const TabSkeleton = () => (
 const RESTART_WAIT_MS = 10 * 60_000;
 const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 type Filter = 'all' | Status | 'PRD' | 'UAT' | 'DEV';
-type View = 'archive' | 'customers' | 'bots' | 'dbs' | 'checklist';
+type View = 'archive' | 'customers' | 'bots' | 'dbs' | 'checklist' | 'calls';
 // Scope of the automatic 15-minute re-check on the Cloud Instances / Databases tabs: everything.
 const ALL_BOTS: BotScope = {};
 const ALL_DBS: DbScope = {};
@@ -70,12 +72,13 @@ function greeting(): string {
   return h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
 }
 
-const VIEW_TITLE: Record<View, string> = { customers: 'Customers', archive: 'Archive', bots: 'Cloud Instances', dbs: 'Databases', checklist: 'Checklist' };
+const VIEW_TITLE: Record<View, string> = { customers: 'Customers', archive: 'Archive', bots: 'Cloud Instances', dbs: 'Databases', checklist: 'Checklist', calls: 'Concurrent Calls' };
 const NAV: { view: View; label: string; short: string; icon: string }[] = [
   { view: 'customers', label: 'Customers', short: 'Customers', icon: 'M17 20v-1.5a3.5 3.5 0 0 0-3.5-3.5h-5A3.5 3.5 0 0 0 5 18.5V20M11 12a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM19 20v-1.2a3 3 0 0 0-2.2-2.9M16 5.2a3.4 3.4 0 0 1 0 6.6' },
   { view: 'archive', label: 'Archive', short: 'Archive', icon: 'M3.5 7.5h17v3h-17zM5 10.5V19a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-8.5M10 14h4' },
   { view: 'bots', label: 'Cloud Instances', short: 'Cloud', icon: 'M7 18a4.5 4.5 0 0 1-.6-8.96A6 6 0 0 1 18 9.5a4.25 4.25 0 0 1-.5 8.5Z' },
   { view: 'dbs', label: 'Databases', short: 'Data', icon: 'M12 10c4.4 0 8-1.3 8-3s-3.6-3-8-3-8 1.3-8 3 3.6 3 8 3ZM4 7v5c0 1.7 3.6 3 8 3s8-1.3 8-3V7M4 12v5c0 1.7 3.6 3 8 3s8-1.3 8-3v-5' },
+  { view: 'calls', label: 'Concurrent calls', short: 'Calls', icon: 'M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a1 1 0 0 1-1 1A15 15 0 0 1 4 5a1 1 0 0 1 1-1ZM15 3a6 6 0 0 1 6 6M15 7a2 2 0 0 1 2 2' },
   { view: 'checklist', label: 'Daily checklist', short: 'Checklist', icon: 'M9 6h11M9 12h11M9 18h11M3.5 6l1.5 1.5L7.5 5M3.5 12l1.5 1.5L7.5 11M3.5 18l1.5 1.5L7.5 17' },
 ];
 
@@ -96,6 +99,8 @@ export default function App() {
   const [draft, setDraft] = useState('');
   const [groups, setGroups] = useState<WatchGroup[]>(() => loadGroups());
   const [selected, setSelected] = useState<string | null>(null);
+  // customer chosen in the details panel for the Concurrent Calls tab (it still has to press Load there)
+  const [callsFor, setCallsFor] = useState<string[] | null>(null);
   const [customerDetail, setCustomerDetail] = useState<{ key: string; account: string | null } | null>(null); // customer opened from the Customers tab
   const { mode, next, setMode, toggleMode } = useTheme();
   const settings = useSettings();
@@ -406,6 +411,16 @@ export default function App() {
     return { ...dbsWatched, databases: dbsWatched.databases.filter((d) => envOf(d.server) === infraEnv) };
   }, [dbsWatched, infraEnv]);
   // Customers tab: one row per subscription (watchlist applied), then the environment filter.
+  // customers offered by the Concurrent Calls tab: every subscription, regardless of the search box (built only while that tab is open)
+  const callOptions = useMemo<CustomerOption[]>(
+    () =>
+      view !== 'calls'
+        ? []
+        : buildCustomerRows(results, bots.data, dbs.data)
+            .map((r) => ({ subscriptionId: r.subscriptionId, label: `${(/(?:^|[-_ ])(?:PRD|PROD|UAT|DEV|TST|TEST)[-_ ](.+)$/i.exec(r.name.replace(/^AZU-NVM-FMC-NCC-/, ''))?.[1] ?? r.name.replace(/^AZU-NVM-FMC-NCC-/, ''))} · ${r.env === 'PRD' ? 'PROD' : r.env}`, bots: r.bots.services }))
+            .sort((a, b) => a.label.localeCompare(b.label)),
+    [view, results, bots.data, dbs.data],
+  );
   const customerRowsAll = useMemo(() => buildCustomerRows(watched, botsWatched, dbsWatched), [watched, botsWatched, dbsWatched]);
   const customerRows = useMemo(
     () => (infraEnv === 'all' ? customerRowsAll : customerRowsAll.filter((r) => r.env === infraEnv)),
@@ -698,7 +713,7 @@ export default function App() {
           </div>
         )}
         {/* ── Shared search + groups (same on every tab) ── */}
-        {view !== 'checklist' && (
+        {view !== 'checklist' && view !== 'calls' && (
         <WatchlistSearch
           terms={terms}
           setTerms={setTerms}
@@ -718,7 +733,7 @@ export default function App() {
         />
         )}
 
-        {view !== 'archive' && view !== 'checklist' && (
+        {view !== 'archive' && view !== 'checklist' && view !== 'calls' && (
           <div className="flex flex-wrap items-center gap-2">
             {(['PRD', 'UAT', 'DEV'] as const).map((e) => (
               <button
@@ -770,6 +785,12 @@ export default function App() {
             onCheck={dbs.check}
             autoNext={dbs.nextAuto}
           /></Suspense>
+        )}
+
+        {view === 'calls' && (
+          <Suspense fallback={<div className="skeleton" style={{ height: 320 }} />}>
+            <CallsView customers={callOptions} preselect={callsFor} onPreselectUsed={() => setCallsFor(null)} />
+          </Suspense>
         )}
 
         {view === 'checklist' && (
@@ -984,6 +1005,11 @@ export default function App() {
           checkDisabled={{ bots: bots.checking !== null, dbs: dbs.checking !== null }}
           onCheckBots={() => void bots.check(`sub:${customerDetailRow.subscriptionId}`, { subscriptionId: customerDetailRow.subscriptionId })}
           onCheckDbs={() => void dbs.check(`sub:${customerDetailRow.subscriptionId}`, { subscriptionId: customerDetailRow.subscriptionId })}
+          onOpenCalls={(sub) => {
+            setCallsFor([sub]);
+            setCustomerDetail(null);
+            goTo('calls');
+          }}
           onClose={() => setCustomerDetail(null)}
         /></Suspense>
       )}

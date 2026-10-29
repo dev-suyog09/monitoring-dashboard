@@ -22,6 +22,25 @@ test.describe('Customers tab', () => {
     await expect(customerRows(page)).toHaveCount(total);
   });
 
+  test('"Archive missing" card: counts customers not fully archived today, filters the table, and complements "Archive complete"', async ({ page }) => {
+    await start(page);
+    await page.waitForTimeout(1500); // count-up animation
+    const total = await customerRows(page).count();
+    const number = async (label: string) => Number(((await metric(page, label).locator('.metric-val').innerText()) || '').replace(/\D/g, ''));
+    const complete = await number('Archive complete');
+    const missing = await number('Archive missing');
+    expect(missing).toBeGreaterThan(-1);
+    await expect(metric(page, 'Archive missing')).toContainText(/of \d+ with SRD|none missing/);
+    // complete + missing = every customer that has an SRD account
+    await expect(page.locator('.metric-sub', { hasText: /with an SRD account/ })).toContainText(String(complete + missing));
+    await metric(page, 'Archive missing').click();
+    await expect(page.locator('.cust-main .banner-warm')).toContainText('archives missing today');
+    await expect(customerRows(page)).toHaveCount(missing);
+    expect(missing).toBeLessThan(total + 1);
+    await metric(page, 'Archive missing').click(); // second click clears
+    await expect(customerRows(page)).toHaveCount(total);
+  });
+
   test('environment pills narrow the list', async ({ page }) => {
     await start(page);
     const total = await customerRows(page).count();

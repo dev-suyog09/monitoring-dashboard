@@ -7,8 +7,8 @@ test.describe('shell and navigation', () => {
     await start(page);
     await expect(page.locator('h1')).toContainText(/Good (morning|afternoon|evening), \w+!/);
     await expect(page.locator('.hdr-user')).toBeVisible();
-    await expect(page.locator('.side-item')).toHaveCount(6); // 5 tabs (incl. checklist) + settings
-    await expect(page.locator('.mstrip .metric')).toHaveCount(4);
+    await expect(page.locator('.side-item')).toHaveCount(7); // 6 tabs (incl. calls and checklist) + settings
+    await expect(page.locator('.mstrip .metric')).toHaveCount(5);
     expect(errors).toEqual([]);
   });
 
@@ -22,7 +22,7 @@ test.describe('shell and navigation', () => {
     await goTab(page, 'Data');
     await expect(page.locator('.mstrip .metric')).toHaveCount(6);
     await goTab(page, 'Customers');
-    await expect(page.locator('.mstrip .metric')).toHaveCount(4);
+    await expect(page.locator('.mstrip .metric')).toHaveCount(5);
     expect(errors).toEqual([]);
   });
 

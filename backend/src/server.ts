@@ -9,6 +9,7 @@ import { loadConfig } from './config.js';
 import { buildAccountClients, mgmtCredential } from './azure.js';
 import { checkAccount, todayStr, setEgressIp, friendlyError } from './checker.js';
 import { checkBotStorage } from './bot.js';
+import { AGGS, checkCalls, checkSeries, HOUR_CHOICES, isGuid, METRIC_NAMES, RANGE_HOURS, type Agg, type CallsResponse, type SeriesResponse } from './calls.js';
 import { listLatestFiles } from './files.js';
 import { InfraStore } from './infra.js';
 import { csrfGuard, hostGuard, rateLimiter, securityHeaders } from './security.js';
@@ -163,6 +164,8 @@ app.use(
   rateLimiter([
     { match: (req) => isPost(req) && req.originalUrl.startsWith('/api/restart'), windowMs: 60_000, max: 3 },
     { match: (req) => isPost(req) && /\/api\/[a-z]+\/check/.test(req.originalUrl), windowMs: 60_000, max: 40 },
+    // every distinct request reads Application Insights: allow normal use, stop hammering
+    { match: (req) => isPost(req) && req.originalUrl.startsWith('/api/calls/series'), windowMs: 60_000, max: 40 },
     { match: (req) => req.originalUrl.startsWith('/api/files'), windowMs: 60_000, max: 300 },
     { match: () => true, windowMs: 60_000, max: 900 },
   ]),
@@ -460,6 +463,74 @@ async function checklistTick(now = new Date()): Promise<void> {
   }
 }
 
+// ---- Concurrent calls per bot (Application Insights): ON DEMAND ONLY ----
+// Never called at start-up or on a timer: the dashboard asks for one customer (one subscription) when someone clicks. Answers are
+// kept for 30 s so a double click or a second person asking about the same customer does not repeat the queries.
+const callsCache = new Map<string, { at: number; data: CallsResponse }>();
+const callsInflight = new Map<string, Promise<CallsResponse>>();
+
+app.post('/api/calls/check', async (req, res) => {
+  const sub = String(req.query.subscriptionId ?? '');
+  const hours = Number(req.query.hours ?? 1);
+  if (!isGuid(sub) || !HOUR_CHOICES.includes(hours)) {
+    res.status(400).json({ error: 'Invalid subscriptionId or hours.' });
+    return;
+  }
+  const key = `${sub}|${hours}`;
+  const hit = callsCache.get(key);
+  if (hit && Date.now() - hit.at < 30_000) {
+    res.json(hit.data);
+    return;
+  }
+  try {
+    let job = callsInflight.get(key);
+    if (!job) {
+      job = checkCalls(mgmtCredential(), sub, hours).finally(() => callsInflight.delete(key));
+      callsInflight.set(key, job);
+    }
+    const data = await job;
+    callsCache.set(key, { at: Date.now(), data });
+    res.json(data);
+  } catch (err) {
+    console.error(`Concurrent calls check failed: ${friendlyError(err)}`);
+    res.status(502).json({ error: 'Could not read the concurrent calls right now.' });
+  }
+});
+
+// The Concurrent Calls tab: one metric over time for one customer. Same rules: on demand only, one subscription per request.
+const seriesCache = new Map<string, { at: number; data: SeriesResponse }>();
+const seriesInflight = new Map<string, Promise<SeriesResponse>>();
+
+app.post('/api/calls/series', async (req, res) => {
+  const sub = String(req.query.subscriptionId ?? '');
+  const hours = Number(req.query.hours ?? 1);
+  const metric = String(req.query.metric ?? 'calls');
+  const agg = String(req.query.agg ?? 'max') as Agg;
+  if (!isGuid(sub) || !RANGE_HOURS.includes(hours) || !Object.hasOwn(METRIC_NAMES, metric) || !AGGS.includes(agg)) {
+    res.status(400).json({ error: 'Invalid subscriptionId, hours, metric or agg.' });
+    return;
+  }
+  const key = `${sub}|${hours}|${metric}|${agg}`;
+  const hit = seriesCache.get(key);
+  if (hit && Date.now() - hit.at < 30_000) {
+    res.json(hit.data);
+    return;
+  }
+  try {
+    let job = seriesInflight.get(key);
+    if (!job) {
+      job = checkSeries(mgmtCredential(), sub, hours, metric, agg).finally(() => seriesInflight.delete(key));
+      seriesInflight.set(key, job);
+    }
+    const data = await job;
+    seriesCache.set(key, { at: Date.now(), data });
+    res.json(data);
+  } catch (err) {
+    console.error(`Concurrent calls series failed: ${friendlyError(err)}`);
+    res.status(502).json({ error: 'Could not read the concurrent calls right now.' });
+  }
+});
+
 // Latest files inside archive/{capture}/{date}/ for one account (on demand, cached).
 // GET /api/files?account=<name>&capture=<folder>[&date=YYYY-MM-DD][&fresh=1]
 const filesCache = new Map<string, { at: number; data: FilesResponse }>();
@@ -535,6 +606,10 @@ if (fs.existsSync(frontendDist)) {
 
 // Anything unexpected: a generic answer (details stay in the server log), never a stack trace.
 app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+  // errors from reading a request body (too large, not JSON) are the caller's mistake, not ours
+  const status = (err as { status?: number } | null)?.status;
+  if (status === 413) return void res.status(413).json({ error: 'Request too large.' });
+  if (status === 400) return void res.status(400).json({ error: 'Invalid request.' });
   console.error(`Request failed: ${err instanceof Error ? err.message : String(err)}`);
   res.status(500).json({ error: 'Something went wrong on the server.' });
 });

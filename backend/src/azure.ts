@@ -13,10 +13,12 @@ import { kqlString, safeNameFragment } from './security.js';
  * is your `az login` session â€” exactly what the Azure Portal uses for "Access
  * key". Set USE_MANAGED_IDENTITY=true in a deployment to use a managed identity.
  */
+let shared: TokenCredential | null = null;
 export function mgmtCredential(): TokenCredential {
-  return cachedCredential(
+  // ONE credential for the whole process: its token cache is what saves the ~4 s `az` sign-in on every request
+  return (shared ??= cachedCredential(
     process.env.USE_MANAGED_IDENTITY === 'true' ? new DefaultAzureCredential() : new AzureCliCredential(),
-  );
+  ));
 }
 
 /** Parallel key fetches (ARM calls); raise/lower with KEY_CONCURRENCY. */
