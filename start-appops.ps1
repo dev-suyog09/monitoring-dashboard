@@ -11,7 +11,9 @@ $root    = Split-Path -Parent $MyInvocation.MyCommand.Path
 $backend = Join-Path $root 'backend'
 
 # Make node + Azure CLI resolvable regardless of the logon PATH.
-$env:PATH = "C:\Program Files\nodejs;C:\Program Files (x86)\Microsoft SDKs\Azure\CLI2\wbin;C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin;" + $env:PATH
+# setup.ps1 puts a private Node.js here when the PC has none (or an old one); it wins over any other.
+$privateNode = Join-Path $env:LOCALAPPDATA 'NTRX-AppOps\node'
+$env:PATH = "$privateNode;C:\Program Files\nodejs;C:\Program Files (x86)\Microsoft SDKs\Azure\CLI2\wbin;C:\Program Files\Microsoft SDKs\Azure\CLI2\wbin;" + $env:PATH
 $node = (Get-Command node.exe -ErrorAction SilentlyContinue).Source
 if (-not $node) { $node = "C:\Program Files\nodejs\node.exe" }
 

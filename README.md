@@ -77,10 +77,31 @@ Database thresholds: storage **watch above 60 %** and **critical above 75 %** (f
 
 ## Prerequisites
 
-- Node.js 18+ and npm
+- Node.js 22.15+ and npm (the setup script downloads a private copy if the PC has none)
 - Azure CLI, logged in: `az login`
 - Read access to the subscriptions (Resource Graph, Azure Monitor metrics, SQL long-term-retention backups, Cloud Services) and permission to list storage account keys. Owner or Contributor covers all of it.
 - Network access to the storage accounts: their firewalls must allow the machine's public IP (see *Firewall and your IP*).
+
+## Quick start for a teammate (Windows, one command)
+
+```powershell
+git clone https://github.com/dev-suyog09/monitoring-dashboard.git
+cd monitoring-dashboard
+.\setup.cmd
+```
+
+`setup.cmd` (it runs `setup.ps1`) sets everything up on that PC, the same way it runs on the author's laptop:
+
+1. checks **Node.js 22.15 or newer** and **Azure CLI**. If Node.js is missing or too old (or `winget` / administrator rights are not available) it downloads a **private copy of Node.js 24 LTS for that user only** from nodejs.org, verifies its published checksum, and uses it for the build and for the scheduled task, with nothing installed system-wide. A missing Azure CLI is installed with `winget`,
+2. opens the Azure sign-in (`az login`) and checks that the login can see the `*srd01` storage accounts,
+3. creates `backend\.env` from the template (accounts are auto-discovered; nothing to edit),
+4. installs the packages and builds the backend and frontend, then runs a quick self-test,
+5. registers the **silent** scheduled task *NTRX AppOps* (starts at logon / start-up and refreshes every 15 minutes, **no console window**),
+6. starts it, waits until it answers, and opens **http://localhost:3001**.
+
+Run it again any time; it only does what is still needed. Options: `.\setup.cmd -Update` (pull the newest code and rebuild), `-Uninstall` (remove the task and stop the backend), `-NoBrowser`, `-SkipTests`, `-NoAutostart` (just start it once), `-PrivateNode` (always use the private Node.js), `-TenantId <id>` (if your `az login` needs a tenant), `-DryRun` (show the steps without changing anything). Log: `setup.log`.
+
+What each person needs: a work account with **Reader** (and permission to list storage keys) on the subscriptions to monitor, the same as the Azure Portal's "Access keys" view. The dashboard only listens on that PC (`127.0.0.1`); nothing is exposed to the network. The first scan takes 1-4 minutes. If it later shows no data, the Azure sign-in has expired: run `az login`.
 
 ## Run it
 
@@ -99,7 +120,7 @@ npm install
 npm run dev                 # http://localhost:3000
 ```
 
-Always-on on Windows: **one process** serves both the API and the built UI on http://localhost:3001.
+Always-on on Windows: **one process** serves both the API and the built UI on http://localhost:3001. The quick start above does all of it; `install-autostart.ps1` is the older, build-and-register-only version of the same thing.
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File .\install-autostart.ps1
@@ -231,7 +252,8 @@ frontend/src/
                   # WatchlistSearch, Notifications, SidePanel, NeedsIpPanel, panels, charts, viewCharts
   lib/            # api client, matching (watchMatch), on-demand hook, alerts + chime, fullscreen,
                   # customer / bot grouping, count-up and theme helpers
-install-autostart.ps1   # one-time build + scheduled-task registration
+setup.cmd / setup.ps1      # one-command setup for a new PC: prerequisites, Azure login, build, silent scheduled task, start
+install-autostart.ps1   # older: build + scheduled-task registration only
 start-appops.ps1        # launcher the task runs (-Restart replaces the running backend)
 add-ip-to-srd.ps1, add-ip-to-botstorage.ps1
 CHANGELOG.md

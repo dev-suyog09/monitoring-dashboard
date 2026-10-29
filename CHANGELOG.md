@@ -15,6 +15,28 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - **CSV export** neutralises spreadsheet formulas in names that start with `=`, `+`, `-` or `@`.
 - `SECURITY.md` documents the new endpoints, the Teams secret handling and the remaining risks.
 
+## Unreleased · One-command setup for teammates
+
+### Added
+- **`setup.cmd` / `setup.ps1`:** one command sets up a new Windows PC the way it runs on the author's laptop: installs Node.js
+  LTS and Azure CLI with winget if missing, signs in to Azure and checks which `*srd01` accounts the login can see, creates
+  `backend\.env`, installs and builds the backend and frontend, runs the backend self-test, registers the silent *NTRX AppOps*
+  scheduled task (logon / start-up, every 15 minutes, no console window), starts it, waits for it and opens the dashboard.
+  Re-runnable; `-Update`, `-Uninstall`, `-NoBrowser`, `-SkipTests`, `-NoAutostart`, `-TenantId`, `-DryRun`.
+- `.gitattributes` keeps `.cmd` / `.ps1` files on Windows line endings after a checkout.
+
+- **No Node.js on the PC? No problem:** setup downloads a private Node.js 24 LTS for that user only (no administrator rights, no
+  installer, nothing global; the download is verified against nodejs.org's published SHA-256 checksum) and the scheduled task
+  uses it. Node.js older than 22.15 is treated the same way, because the launcher's `--use-system-ca` flag needs 22.15+.
+  `-PrivateNode` forces it.
+
+### Changed
+- **The scheduled task no longer flashes a console window** every 15 minutes (it now starts PowerShell through
+  `conhost --headless`); `install-autostart.ps1` registers it the same way.
+- **Page-load weight:** the 3D pie, the Calls tab and the Checklist tab load only when used, rarely used panels load a few
+  seconds after the page, and bot-storage answers list at most the latest 50 stuck interactions per account (the count stays
+  exact), which took one customer's 1.3 MB answer down to a few kilobytes.
+
 ## Unreleased · Premium customer details panel
 
 ### Changed

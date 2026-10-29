@@ -68,13 +68,18 @@ function Account({ a, days }: { a: BotAccountResult; days: number }) {
       {a.interactions.length > 0 && (
         <details className="mt-1.5">
           <summary className="cursor-pointer select-none text-[11px] font-semibold" style={{ color: 'var(--c-fg)' }}>
-            {a.interactions.length} stuck interaction{a.interactions.length === 1 ? '' : 's'} · last {days} days · latest → oldest
+            {a.stuckCount} stuck interaction{a.stuckCount === 1 ? '' : 's'} · last {days} days · latest → oldest
           </summary>
           <ul className="mt-1.5 flex flex-col gap-2">
             {a.interactions.map((i) => (
               <Interaction key={i.id} i={i} />
             ))}
           </ul>
+          {a.stuckCount > a.interactions.length && (
+            <p className="mt-1.5 text-[10px]" style={{ color: 'var(--text-3)' }}>
+              Showing the latest {a.interactions.length} of {a.stuckCount}.
+            </p>
+          )}
         </details>
       )}
       {a.olderCount > 0 && (

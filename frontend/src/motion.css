@@ -1,0 +1,63 @@
+/* Motion layer: one set of easings and entrances for every screen. All of it is switched off by "Reduce motion" (and the OS setting). */
+@property --p { syntax: '<percentage>'; inherits: false; initial-value: 0%; }
+:root { --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1); }
+
+/* switching tab: the old page leaves quickly, the new one rises into place */
+::view-transition-old(root) { animation: vt-out2 0.2s var(--ease) both; }
+::view-transition-new(root) { animation: vt-in2 0.42s var(--ease-out) both; }
+@keyframes vt-out2 { to { opacity: 0; transform: translateY(-4px); } }
+@keyframes vt-in2 { from { opacity: 0; transform: translateY(10px); } }
+
+/* things that arrive together arrive one after another */
+:is(.cv-results, .cv-top, .cv-kpis, .cd-kpis, .cd-layout, .cd-col, .cc-section, .cc-stats, .cx-rows, .cv-two, .sheet-xl .sheet-body) > * {
+  --n: 0; /* reset, or a child would inherit its parent's place in the queue */
+  animation: fade-up 0.55s var(--ease-out) both;
+  animation-delay: calc(var(--n, 0) * 70ms);
+}
+:is(.cv-results, .cv-top, .cv-kpis, .cd-kpis, .cd-layout, .cd-col, .cc-section, .cc-stats, .cx-rows, .cv-two, .sheet-xl .sheet-body, .ch-bars) > :nth-child(2) { --n: 1; }
+:is(.cv-results, .cv-top, .cv-kpis, .cd-kpis, .cd-layout, .cd-col, .cc-section, .cc-stats, .cx-rows, .cv-two, .sheet-xl .sheet-body, .ch-bars) > :nth-child(3) { --n: 2; }
+:is(.cv-results, .cv-top, .cv-kpis, .cd-kpis, .cd-layout, .cd-col, .cc-section, .cc-stats, .cx-rows, .cv-two, .sheet-xl .sheet-body, .ch-bars) > :nth-child(4) { --n: 3; }
+:is(.cv-results, .cv-top, .cv-kpis, .cd-kpis, .cd-layout, .cd-col, .cc-section, .cc-stats, .cx-rows, .cv-two, .sheet-xl .sheet-body, .ch-bars) > :nth-child(5) { --n: 4; }
+:is(.cv-results, .cv-top, .cv-kpis, .cd-kpis, .cd-layout, .cd-col, .cc-section, .cc-stats, .cx-rows, .cv-two, .sheet-xl .sheet-body, .ch-bars) > :nth-child(6) { --n: 5; }
+:is(.cv-results, .cv-top, .cv-kpis, .cd-kpis, .cd-layout, .cd-col, .cc-section, .cc-stats, .cx-rows, .cv-two, .sheet-xl .sheet-body, .ch-bars) > :nth-child(7) { --n: 6; }
+:is(.cv-results, .cv-top, .cv-kpis, .cd-kpis, .cd-layout, .cd-col, .cc-section, .cc-stats, .cx-rows, .cv-two, .sheet-xl .sheet-body, .ch-bars) > :nth-child(n + 8) { --n: 7; }
+/* a long list should not take seconds to appear */
+.cx-rows > :nth-child(n + 12) { animation-delay: 0.4s; }
+html.vt :is(.cv-results, .cv-top, .cv-kpis, .cd-kpis, .cd-layout, .cd-col, .cc-section, .cc-stats, .cx-rows, .cv-two) > * { animation: none; }
+
+/* charts: lines draw themselves, the area fades in behind them, bars grow, the heatmap washes in row by row */
+.ch-area { animation: fade-in 0.9s var(--ease) 0.35s both; }
+.ch-peak, .ch-avg, .ch-avg-label { animation: fade-in 0.6s var(--ease) 1s both; }
+.ch-bar-fill { transform-origin: left center; animation: bar-in 0.9s var(--ease-out) both; animation-delay: calc(var(--n, 0) * 80ms + 200ms); }
+.ch-heat-row { animation: fade-in 0.5s var(--ease) both; animation-delay: calc(var(--r, 0) * 28ms); }
+.ch-tip { animation: fade-in 0.12s ease both; }
+.ch-legend button { transition: opacity 0.2s var(--ease), background-color 0.2s var(--ease), transform 0.12s var(--ease); }
+
+/* reloading keeps the old picture on screen, dimmed, with a thin progress sweep, instead of blanking it */
+.cv-results { display: flex; flex-direction: column; gap: 18px; transition: opacity 0.3s var(--ease), filter 0.3s var(--ease); }
+.cv-results.cv-busy { opacity: 0.5; filter: saturate(0.75); pointer-events: none; }
+.cv-bar { position: relative; }
+.cv-bar::after { content: ''; position: absolute; left: 24px; right: 24px; bottom: 0; height: 2px; border-radius: 2px; opacity: 0; transition: opacity 0.25s var(--ease); background: linear-gradient(90deg, transparent, var(--accent), transparent) no-repeat; background-size: 40% 100%; animation: cv-sweep 1.1s linear infinite; }
+.cv-bar[aria-busy='true']::after { opacity: 1; }
+@keyframes cv-sweep { from { background-position: -50% 0; } to { background-position: 150% 0; } }
+
+/* menus and pop-overs */
+.cv-pop { transform-origin: top left; animation: pop-in 0.2s var(--ease-out) both; }
+@keyframes pop-in { from { opacity: 0; transform: translateY(-6px) scale(0.98); } }
+
+/* progress that fills, numbers that settle */
+.cd-kpi-bar i { transform-origin: left center; animation: bar-in 0.9s var(--ease-out) 0.3s both; }
+.cx-ring, .cl-ring { transition: --p 0.9s var(--ease-out); }
+.cx-bar i { transition: width 0.5s var(--ease-out); }
+
+/* checklist: a tick pops in, the row settles */
+.cx-row { transition: background-color 0.2s var(--ease), opacity 0.3s var(--ease); }
+.cx-row.on .cx-box { animation: box-pop 0.34s var(--ease-spring); }
+.cx-row.on .cx-box::after { animation: tick-pop 0.34s var(--ease-spring) both; }
+.cx-name { transition: color 0.3s var(--ease); }
+@keyframes box-pop { 50% { transform: scale(1.2); } }
+@keyframes tick-pop { from { transform: rotate(45deg) scale(0); } to { transform: rotate(45deg) scale(1); } }
+
+/* every button answers a press */
+:is(.pill, .btn-accent, .cv-seg button, .cx-nav, .cv-toggle, .ch-legend button, .cx-row-main):active:not(:disabled) { transform: scale(0.97); }
+:is(.pill, .btn-accent, .cv-seg button, .cv-toggle):not(:disabled) { transition-property: background-color, color, border-color, box-shadow, transform, filter; transition-duration: 0.18s; transition-timing-function: var(--ease); }

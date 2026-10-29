@@ -27,6 +27,7 @@ import {
   type Split,
 } from '../lib/calls';
 import { Bars, Heatmap, Spark, TimeChart, type BarItem } from './CallsCharts';
+import { AnimatedText } from './panels';
 
 const MAX_CUSTOMERS = 4;
 const AUTO = [
@@ -101,7 +102,9 @@ function Kpi({ label, value, sub, tone = '', big = false }: { label: string; val
   return (
     <div className={`cv-kpi ${tone}${big ? ' big' : ''}`} role="listitem">
       <span>{label}</span>
-      <b>{value}</b>
+      <b>
+        <AnimatedText value={value} />
+      </b>
       {sub && <em>{sub}</em>}
     </div>
   );
@@ -277,7 +280,7 @@ export default function CallsView({ customers, preselect, onPreselectUsed }: { c
   return (
     <div className="cv">
       {/* ── toolbar: scope, metric, aggregation, range, split ── */}
-      <section className="cv-bar panel" aria-label="Chart settings">
+      <section className="cv-bar panel" aria-label="Chart settings" aria-busy={loading}>
         <div className="cv-grid">
           <div className="cv-ctl cv-wide">
             <label id="cv-cust">Customers</label>
@@ -354,7 +357,7 @@ export default function CallsView({ customers, preselect, onPreselectUsed }: { c
       {!model && loading && <div className="skeleton" style={{ height: 320 }} aria-busy />}
 
       {model && (
-        <>
+        <div className={`cv-results${loading ? ' cv-busy' : ''}`}>
           {/* ── filters on what is loaded (no new request) ── */}
           <section className="cv-filters panel" aria-label="Filters">
             <div className="cv-row cv-wrap">
@@ -568,7 +571,7 @@ export default function CallsView({ customers, preselect, onPreselectUsed }: { c
             Read at {new Date(model.generatedAt).toLocaleTimeString()} from Application Insights (read-only). Quiet means no reading for 10+ minutes.
             {auto ? ` Refreshing every ${AUTO.find((a) => a.s === auto)?.label}.` : ''}
           </p>
-        </>
+        </div>
       )}
     </div>
   );

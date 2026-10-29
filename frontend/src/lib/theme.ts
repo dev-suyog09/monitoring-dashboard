@@ -77,11 +77,18 @@ export function useTheme() {
 
   // changing theme cross-fades the whole page; the attributes are set inside the transition so both frames are right
   const setMode = useCallback(
-    (m: Mode) =>
+    (m: Mode) => {
+      // saved the moment it is picked, not after the cross-fade, so a reload right afterwards keeps it
+      try {
+        localStorage.setItem('sam.theme', m);
+      } catch {
+        /* ignore */
+      }
       smooth(() => {
         applyMode(m);
         setModeState(m);
-      }),
+      });
+    },
     [],
   );
   const next = IDS[(IDS.indexOf(mode) + 1) % IDS.length]!;

@@ -10,13 +10,16 @@ It reads each account's key **at runtime via your Azure login** — the same thi
 the Azure Portal does — so **no secrets are stored on disk** and **no data-plane
 RBAC role is required**.
 
+> **Fastest way (Windows):** clone the repository and run **`.\setup.cmd`**. It does steps 1 to 4 below for you (prerequisites,
+> Azure sign-in, build, silent scheduled task, start). If Node.js is missing it downloads a private copy for your user only. The manual steps stay here for other systems and for understanding what it does.
+
 ---
 
 ## 1. Prerequisites
 
 | Requirement | Why | Check |
 |---|---|---|
-| **Node.js 18+** (tested on 24 LTS) | Runs backend + frontend | `node --version` |
+| **Node.js 22.15+** (tested on 24 LTS) | Runs backend + frontend (the launcher uses `--use-system-ca`, which older versions lack) | `node --version` |
 | **npm 9+** (ships with Node) | Installs dependencies | `npm --version` |
 | **Azure CLI** | Provides the login the app authenticates with | `az --version` |
 | **An Azure account** with management access (Owner/Contributor) to the target subscriptions | Lets the app list accounts and read their keys | `az account show` |

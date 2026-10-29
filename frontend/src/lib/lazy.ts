@@ -4,20 +4,25 @@ import { lazy, type ComponentType, type LazyExoticComponent } from 'react';
 type AnyComponent = ComponentType<any>;
 type Loader<T extends AnyComponent> = () => Promise<{ default: T }>;
 const loaders: Array<() => Promise<unknown>> = [];
+const lateLoaders: Array<() => Promise<unknown>> = [];
 
 /**
  * React.lazy plus a registry: the chunk is split out of the first download, and `preloadLazyChunks()` fetches all of them
  * in the browser's idle time after the page is up, so the first click on a tab or panel is instant instead of waiting.
  */
-export function lazyPreload<T extends AnyComponent>(load: Loader<T>): LazyExoticComponent<T> {
+export function lazyPreload<T extends AnyComponent>(load: Loader<T>, opts: { late?: boolean } = {}): LazyExoticComponent<T> {
   let promise: Promise<{ default: T }> | null = null;
   const once = () => (promise ??= load());
-  loaders.push(once);
+  (opts.late ? lateLoaders : loaders).push(once);
   return lazy(once);
 }
 
+/** The tabs and the customer panel right away; rarely used panels a few seconds later, so the first page stays light. */
 export function preloadLazyChunks(): void {
   for (const l of loaders) void l().catch(() => undefined);
+  window.setTimeout(() => {
+    for (const l of lateLoaders) void l().catch(() => undefined);
+  }, 4000);
 }
 
 /** Runs `fn` when the browser is idle (or soon, where that API does not exist). */

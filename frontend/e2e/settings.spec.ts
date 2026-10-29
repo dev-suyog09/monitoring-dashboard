@@ -49,6 +49,7 @@ test.describe('Settings', () => {
     await start(page);
     await openSettings(page);
     await page.locator('.theme-card', { hasText: 'Sunset' }).click();
+    await expect(html(page)).toHaveAttribute('data-palette', 'sunset'); // wait for the cross-fade to apply it
     await page.reload();
     await expect(html(page)).toHaveAttribute('data-palette', 'sunset');
   });

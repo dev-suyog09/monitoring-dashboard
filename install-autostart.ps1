@@ -24,8 +24,16 @@ if (-not (Test-Path (Join-Path $root 'backend\.env'))) {
 
 Write-Host '==> Registering scheduled task "NTRX AppOps"'
 $launcher = Join-Path $root 'start-appops.ps1'
-$action   = New-ScheduledTaskAction -Execute 'powershell.exe' `
-  -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$launcher`" -Restart"
+# conhost --headless runs PowerShell with NO console at all (Windows 11 / recent Windows 10). Plain `powershell.exe -WindowStyle Hidden`
+# still flashes a console window every time the task runs; fall back to it only where conhost has no --headless.
+$headless = (Get-Command conhost.exe -ErrorAction SilentlyContinue) -and ([Environment]::OSVersion.Version.Build -ge 19041)
+if ($headless) {
+  $action = New-ScheduledTaskAction -Execute 'conhost.exe' `
+    -Argument "--headless powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File `"$launcher`" -Restart"
+} else {
+  $action = New-ScheduledTaskAction -Execute 'powershell.exe' `
+    -Argument "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$launcher`" -Restart"
+}
 # Logon + startup triggers, each re-run every 15 min (-Restart makes each run replace the backend with a fresh one).
 $rep      = (New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 15)).Repetition
 $logon    = New-ScheduledTaskTrigger -AtLogOn -User "$env:USERDOMAIN\$env:USERNAME"

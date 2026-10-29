@@ -85,6 +85,15 @@ export function Sparkline({
 function CountNum({ n }: { n: number }) {
   return <>{Math.round(useCountUp(n))}</>;
 }
+function CountFixed({ n, digits, suffix }: { n: number; digits: number; suffix: string }) {
+  return <>{`${useCountUp(n).toFixed(digits)}${suffix}`}</>;
+}
+/** Counts up whatever number a text holds ("237", "12.5", "8%", "114/114"); any other text is shown as it is. */
+export function AnimatedText({ value }: { value: string }) {
+  const m = /^(-?\d+)(?:\.(\d+))?(%?)$/.exec(value);
+  if (m) return <CountFixed n={Number(`${m[1]}${m[2] ? `.${m[2]}` : ''}`)} digits={m[2]?.length ?? 0} suffix={m[3] ?? ''} />;
+  return <AnimatedValue value={value} />;
+}
 export function AnimatedValue({ value }: { value: number | string }) {
   if (typeof value === 'number') return <CountNum n={value} />;
   const m = /^(\d+)\/(\d+)$/.exec(value);

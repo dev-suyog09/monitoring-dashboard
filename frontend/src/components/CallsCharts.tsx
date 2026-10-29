@@ -110,11 +110,13 @@ export function TimeChart({
           {single &&
             runs(single.values, x, y).map((r, i) =>
               r.length > 1 ? (
-                <path key={`f${i}`} d={`${smoothPath(r)} L${r[r.length - 1]![0].toFixed(1)} ${y(0).toFixed(1)} L${r[0]![0].toFixed(1)} ${y(0).toFixed(1)}Z`} fill={`url(#${uid}-${single.key.replace(/\W/g, '')})`} />
+                <path key={`f${i}`} d={`${smoothPath(r)} L${r[r.length - 1]![0].toFixed(1)} ${y(0).toFixed(1)} L${r[0]![0].toFixed(1)} ${y(0).toFixed(1)}Z`} fill={`url(#${uid}-${single.key.replace(/\W/g, '')})`} className="ch-area" />
               ) : null,
             )}
           {shown.map((s) =>
-            runs(s.values, x, y).map((r, i) => <path key={`${s.key}${i}`} d={smoothPath(r)} fill="none" stroke={s.color} strokeWidth={shown.length > 4 ? 1.6 : 2.1} strokeLinejoin="round" strokeLinecap="round" />),
+            runs(s.values, x, y).map((r, i) => (
+              <path key={`${s.key}${i}`} d={smoothPath(r)} fill="none" stroke={s.color} strokeWidth={shown.length > 4 ? 1.6 : 2.1} strokeLinejoin="round" strokeLinecap="round" pathLength={1} className="draw ch-line" />
+            )),
           )}
 
           {single && peakIx >= 0 && hover === null && (
@@ -200,7 +202,7 @@ export function Heatmap({ bots, times, hours, unit }: { bots: Bot[]; times: numb
       </div>
       <svg viewBox={`0 0 ${W} ${height}`} className="ch-svg" role="img" aria-label="Heatmap of bots over time" onMouseLeave={() => setHint(null)}>
         {bots.map((b, r) => (
-          <g key={b.id}>
+          <g key={b.id} className="ch-heat-row" style={{ ['--r' as string]: Math.min(r, 28) }}>
             <text x={LABEL - 10} y={r * RH + RH - 3} textAnchor="end" className="ch-axis">
               {b.group} · {b.name.replace(/^RecordingService_/, '')}
             </text>

@@ -1,8 +1,10 @@
 import '../calls.css';
-import { useMemo, useState } from 'react';
+import { lazy, Suspense, useMemo, useState } from 'react';
 import { checkCalls, type CallGroup, type CallsResponse } from '../lib/api';
 import { PALETTE, fmtTime, type Series } from '../lib/calls';
-import { TimeChart } from './CallsCharts';
+// the chart code is only fetched when there is something to draw
+const TimeChart = lazy(() => import('./CallsCharts').then((m) => ({ default: m.TimeChart })));
+import { AnimatedText } from './panels';
 
 const HOURS = [
   { h: 1, label: '1 hour' },
@@ -27,7 +29,9 @@ function Stat({ label, value, sub, tone = '' }: { label: string; value: string; 
   return (
     <div className={`cc-stat ${tone}`}>
       <span>{label}</span>
-      <b>{value}</b>
+      <b>
+        <AnimatedText value={value} />
+      </b>
       {sub && <em>{sub}</em>}
     </div>
   );
@@ -217,7 +221,9 @@ export default function CallsSection({ subscriptionId, onOpenFull }: { subscript
           </div>
           {chart && chart.series.length > 0 && (
             <div className="cc-chart">
-              <TimeChart series={chart.series} times={chart.times} hours={data.hours} unit="" />
+              <Suspense fallback={<div className="skeleton" style={{ height: 250 }} />}>
+                <TimeChart series={chart.series} times={chart.times} hours={data.hours} unit="" />
+              </Suspense>
             </div>
           )}
           {data.groups.map((g, i) => (

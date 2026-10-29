@@ -2,6 +2,12 @@ import type { BotAccountResult, BotInteraction, BotStorageResult, BotTarget } fr
 import { friendlyError } from './checker.js';
 
 const FILES_PER_INTERACTION = 5;
+/**
+ * Stuck interactions listed per bot account in the answer. The count is always the true one; only the list is capped, newest first.
+ * Without a cap one account with a thousand stuck interactions made every page load download over a megabyte.
+ */
+export const MAX_LISTED_INTERACTIONS = 50;
+export const listed = (all: BotInteraction[]): BotInteraction[] => all.slice(0, MAX_LISTED_INTERACTIONS);
 /** Safety cap on blobs read from one bot account per scan (a healthy one holds ~none). */
 const MAX_BLOBS = 40_000;
 
@@ -127,7 +133,7 @@ async function checkBotAccount(target: BotTarget, o: BotOptions): Promise<BotAcc
       stuckCount: interactions.length,
       olderCount,
       truncated,
-      interactions,
+      interactions: listed(interactions),
       error: null,
     };
   } catch (err) {

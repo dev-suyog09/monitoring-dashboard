@@ -29,6 +29,9 @@ const answer = (hours: number) => ({
   ],
 });
 
+/** The panel section (the sidebar's Concurrent calls button has the same accessible name). */
+const callsSection = (page: Page) => page.locator('section[aria-label="Concurrent calls"]');
+
 async function spy(page: Page, status = 200) {
   const calls: string[] = [];
   await page.route(/\/api\/calls\//, (route) => {
@@ -46,7 +49,7 @@ test.describe('Concurrent calls (on demand)', () => {
     await start(page);
     await customerRows(page).first().dblclick();
     await expect(page.locator('.sheet')).toBeVisible();
-    await expect(page.getByLabel('Concurrent calls')).toContainText('Not loaded');
+    await expect(callsSection(page)).toContainText('Not loaded');
     await page.waitForTimeout(1500);
     expect(calls).toEqual([]);
     await closePanel(page);
@@ -59,7 +62,7 @@ test.describe('Concurrent calls (on demand)', () => {
     const calls = await spy(page);
     await start(page);
     await customerRows(page).first().dblclick();
-    const sec = page.getByLabel('Concurrent calls');
+    const sec = callsSection(page);
     await sec.getByRole('button', { name: 'Check concurrent calls' }).click();
     await expect(sec.locator('.cc-group')).toHaveCount(4);
     expect(calls).toHaveLength(1);
@@ -94,7 +97,7 @@ test.describe('Concurrent calls (on demand)', () => {
     const calls = await spy(page, 502);
     await start(page);
     await customerRows(page).first().dblclick();
-    const sec = page.getByLabel('Concurrent calls');
+    const sec = callsSection(page);
     await sec.getByRole('button', { name: 'Check concurrent calls' }).click();
     await expect(sec.locator('.cd-err')).toContainText('Could not read');
     await page.waitForTimeout(1500);
@@ -105,11 +108,11 @@ test.describe('Concurrent calls (on demand)', () => {
     const calls = await spy(page);
     await start(page);
     await customerRows(page).first().dblclick();
-    await page.getByLabel('Concurrent calls').getByRole('button', { name: 'Check concurrent calls' }).click();
+    await callsSection(page).getByRole('button', { name: 'Check concurrent calls' }).click();
     await expect(page.locator('.cc-group').first()).toBeVisible();
     await closePanel(page);
     await customerRows(page).first().dblclick();
-    await expect(page.getByLabel('Concurrent calls')).toContainText('Not loaded');
+    await expect(callsSection(page)).toContainText('Not loaded');
     expect(calls).toHaveLength(1);
   });
 });

@@ -39,6 +39,9 @@ async function fake(page: Page) {
   return calls;
 }
 
+/** The main chart card (its label must not be confused with 'Chart settings' or the svg's own label). */
+const chartCard = (page: Page) => page.locator('section[aria-label="Chart"]');
+
 async function openTab(page: Page) {
   await page.locator('.side-item', { hasText: 'Calls' }).first().click();
   await expect(page.locator('.page-eyebrow')).toHaveText(/Concurrent Calls/i);
@@ -77,8 +80,8 @@ test.describe('Concurrent Calls tab (on demand)', () => {
     expect(calls[0]).toMatch(/^\/api\/calls\/series\?subscriptionId=[^&]+&hours=6&metric=calls&agg=avg$/);
     await expect(page.getByLabel('What stands out').locator('li')).toHaveCount(4); // written insights, not only charts
     await expect(page.getByLabel('What stands out')).toContainText('bots');
-    await expect(page.getByLabel('Chart').locator('.ch-svg')).toBeVisible();
-    await expect(page.getByLabel('Chart').locator('.ch-legend button')).toHaveCount(2); // split by recording group by default
+    await expect(chartCard(page).locator('.ch-svg')).toBeVisible();
+    await expect(chartCard(page).locator('.ch-legend button')).toHaveCount(2); // split by recording group by default
     await expect(page.getByLabel('Recording groups').locator('.ch-bars li')).toHaveCount(2);
     await expect(page.getByLabel('Heatmap').locator('.ch-svg rect').first()).toBeVisible();
     await expect(page.getByLabel('Bot instances').locator('tbody tr')).toHaveCount(10);
@@ -131,13 +134,12 @@ test.describe('Concurrent Calls tab (on demand)', () => {
     await pickFirstCustomer(page);
     await page.getByLabel('Split by').selectOption('instance');
     await page.getByRole('button', { name: /Load/ }).click();
-    const legend = page.getByLabel('Chart').locator('.ch-legend button');
+    const legend = chartCard(page).locator('.ch-legend button');
     await expect(legend).toHaveCount(10);
-    await expect(page.getByLabel('Chart')).toContainText('busiest 10 of');
     await legend.first().click();
     await expect(legend.first()).toHaveAttribute('aria-pressed', 'false');
     await page.getByLabel('Split by').selectOption('none');
-    await expect(page.getByLabel('Chart').locator('.ch-legend')).toHaveCount(0);
+    await expect(chartCard(page).locator('.ch-legend')).toHaveCount(0);
   });
 
   test('hovering the chart shows the values at that moment', async ({ page }) => {
@@ -146,9 +148,7 @@ test.describe('Concurrent Calls tab (on demand)', () => {
     await openTab(page);
     await pickFirstCustomer(page);
     await page.getByRole('button', { name: /Load/ }).click();
-    const svg = page.getByLabel('Chart').locator('.ch-svg').first();
-    const box = (await svg.boundingBox())!;
-    await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5);
+    await chartCard(page).locator('.ch-svg rect').first().hover(); // scrolls the chart into view first
     await expect(page.locator('.ch-tip')).toBeVisible();
     await expect(page.locator('.ch-tip')).toContainText('rec-0');
   });

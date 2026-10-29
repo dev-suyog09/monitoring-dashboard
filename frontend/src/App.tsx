@@ -1,4 +1,4 @@
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { BotsResponse, CheckResponse, CheckResult, DatabasesResponse, Status } from './types';
 import { fetchCheck, fetchHealth, restartBackend, fetchBots, checkBots, fetchDatabases, checkDatabases, fetchMe, firstName, type Me } from './lib/api';
 import { findNeedsIp } from './lib/needsIp';
@@ -28,14 +28,15 @@ import { buildCustomerRows } from './lib/customers';
 import type { BotScope } from './components/BotGroups';
 
 // Split out of the first download; fetched in idle time right after the page is up (see lib/lazy.ts).
-const DetailDrawer = lazyPreload(() => import('./components/DetailDrawer'));
+const DetailDrawer = lazyPreload(() => import('./components/DetailDrawer'), { late: true });
 const CustomerDetail = lazyPreload(() => import('./components/CustomerDetail'));
-const SettingsPanel = lazyPreload(() => import('./components/SettingsPanel'));
-const NeedsIpPanel = lazyPreload(() => import('./components/NeedsIpPanel'));
+const SettingsPanel = lazyPreload(() => import('./components/SettingsPanel'), { late: true });
+const NeedsIpPanel = lazyPreload(() => import('./components/NeedsIpPanel'), { late: true });
 const BotsView = lazyPreload(() => import('./components/BotsView'));
 const DatabasesView = lazyPreload(() => import('./components/DatabasesView'));
-const ChecklistView = lazyPreload(() => import('./components/ChecklistView'));
-const CallsView = lazyPreload(() => import('./components/CallsView'));
+// not pre-fetched in idle time: the checklist and the concurrent calls are used now and then, and calls are on demand by design
+const ChecklistView = lazy(() => import('./components/ChecklistView'));
+const CallsView = lazy(() => import('./components/CallsView'));
 
 /** Shown for the instant a not-yet-loaded tab is being fetched. */
 const TabSkeleton = () => (

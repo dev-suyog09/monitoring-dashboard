@@ -9,6 +9,7 @@ import { defineConfig } from '@playwright/test';
  *   npm run e2e:headed       watch it run
  *   E2E_URL=http://host:3001 npm run e2e      another address
  *   E2E_BROWSER=chrome npm run e2e            use Chrome instead of Edge
+ *   E2E_EXECUTABLE=/path/to/chrome-headless-shell npm run e2e   use that browser build
  */
 export default defineConfig({
   testDir: 'e2e',
@@ -20,9 +21,11 @@ export default defineConfig({
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     baseURL: process.env.E2E_URL ?? 'http://localhost:3001',
-    channel: process.env.E2E_BROWSER ?? 'msedge',
+    // E2E_EXECUTABLE=<path to a chromium / chrome-headless-shell> overrides the installed Edge / Chrome (for machines where a
+    // browser policy stops Edge / Chrome from being remote-controlled)
+    channel: process.env.E2E_EXECUTABLE ? undefined : (process.env.E2E_BROWSER ?? 'msedge'),
     viewport: { width: 1440, height: 900 },
-    launchOptions: { args: ['--autoplay-policy=no-user-gesture-required'] },
+    launchOptions: { args: ['--autoplay-policy=no-user-gesture-required'], executablePath: process.env.E2E_EXECUTABLE || undefined },
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
   },

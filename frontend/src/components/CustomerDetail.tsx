@@ -8,6 +8,7 @@ import { EnvBadge, StatusBadge } from './Badges';
 import '../detail.css';
 import BotStoragePanel from './BotStoragePanel';
 import CallsSection from './CallsSection';
+import { AnimatedText } from './panels';
 import LatestFiles from './LatestFiles';
 import SidePanel from './SidePanel';
 
@@ -44,7 +45,9 @@ function Kpi({ label, value, sub, scope, icon, pct }: { label: string; value: st
           {icon}
         </span>
       </span>
-      <span className="cd-kpi-val">{value}</span>
+      <span className="cd-kpi-val">
+        <AnimatedText value={value} />
+      </span>
       <span className="cd-kpi-sub">{sub}</span>
       {pct !== undefined && pct !== null && (
         <span className="cd-kpi-bar" aria-hidden>

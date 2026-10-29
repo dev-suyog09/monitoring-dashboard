@@ -235,3 +235,14 @@ test('selectBots scopes by subscription', () => {
   assert.deepEqual(selectBots([a, b], { subscriptionId: 'SUB-A' }).map((c) => c.name), ['adcprdntx-uaen-cs-bot-01']);
   assert.equal(selectBots([a, b], {}).length, 2);
 });
+
+import { listed, MAX_LISTED_INTERACTIONS } from './bot.js';
+
+test('only the newest stuck interactions are listed in the answer; the true count is kept separately', () => {
+  const all = Array.from({ length: 1371 }, (_, i) => ({ id: `i${i}`, fileCount: 2, totalBytes: 1, oldestModified: null, newestModified: null, stuck: true, files: [] }));
+  const out = listed(all);
+  assert.equal(out.length, MAX_LISTED_INTERACTIONS);
+  assert.equal(out[0]!.id, 'i0', 'newest first is preserved');
+  assert.equal(listed(all.slice(0, 3)).length, 3);
+  assert.ok(JSON.stringify(out).length < 20_000, 'a bot account can no longer add a megabyte to the page load');
+});
