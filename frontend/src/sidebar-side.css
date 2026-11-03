@@ -1,3 +1,9 @@
+/* Layers, bottom to top: page, sidebar (45 to 60), dimmed backdrop and side panels (80, 81), toasts (90).
+   Panels (Settings, customer details, notifications) must cover the sidebar, never the other way round. */
+.drawer-backdrop { z-index: 80; }
+.drawer { z-index: 81; }
+.toasts { z-index: 90; }
+
 /* Sidebar position: left (the default), right, top or bottom. Settings → Navigation → Sidebar position.
    Phones (860px and narrower) always use the bottom bar, so none of this applies there. It works together with the
    sidebar modes (always show / on hover / hide) and with every theme. */
@@ -14,8 +20,10 @@
   html[data-side='right'][data-sidebar='hover'] .side-nav:not(.side-peek) { transform: translateX(calc(100% + 30px)); }
   html[data-side='right'] .side-zone { left: auto; right: 0; }
   html[data-side='right'] .side-zone::after { left: auto; right: 6px; }
-  html[data-side='right'][data-sidebar] .page-shift .dash { margin-left: 0; margin-right: 86px; }
-  html[data-side='right'][data-sidebar='hidden'] .dash, html[data-side='right'][data-sidebar='hover'] .dash { transition: margin-right 0.32s var(--ease-out); }
+  /* opening the bar: the page slides away from it (left for a right-hand bar), so it is never covered */
+  html[data-side='right'][data-sidebar] .page-shift .dash { margin-left: 0; transform: translateX(-86px); }
+  html[data-side='right'][data-sidebar] .page-shift { overflow-x: clip; }
+  html[data-side='right'][data-sidebar='hidden'] .dash, html[data-side='right'][data-sidebar='hover'] .dash { transition: transform 0.32s var(--ease-out); }
 
   /* ───────── top and bottom: the sidebar becomes a horizontal bar ───────── */
   html:is([data-side='top'], [data-side='bottom']) .page { flex-direction: column; }
@@ -60,6 +68,7 @@
 
   /* content makes room when the hidden / hover bar is open (it pushes instead of covering) */
   html[data-side='top'][data-sidebar] .page-shift .dash { margin-left: 0; margin-top: 78px; }
-  html[data-side='bottom'][data-sidebar] .page-shift .dash { margin-left: 0; margin-bottom: 78px; }
-  html:is([data-side='top'], [data-side='bottom']) .dash { transition: margin 0.32s var(--ease-out); }
+  html[data-side='bottom'][data-sidebar] .page-shift .dash { margin-left: 0; transform: translateY(-78px); }
+  html[data-side='top'] .dash { transition: margin 0.32s var(--ease-out); }
+  html[data-side='bottom'] .dash { transition: transform 0.32s var(--ease-out); }
 }

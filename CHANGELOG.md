@@ -15,6 +15,24 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - **CSV export** neutralises spreadsheet formulas in names that start with `=`, `+`, `-` or `@`.
 - `SECURITY.md` documents the new endpoints, the Teams secret handling and the remaining risks.
 
+## Unreleased · Side panels cover the sidebar
+
+### Fixed
+- **The sidebar was drawn on top of every side panel** (customer details, an Archive account, Settings, notifications) and of
+  their dimmed backdrop, so with the bar on the right it covered the panel's content and its close button. Layers are now
+  page, sidebar, dimmed backdrop and panels, then toasts, so a panel always covers the bar. Tests check, for each side, that the
+  sidebar sits under the panel and that nothing is on top of the close button.
+
+## Unreleased · Sidebar opening pushes the page on every side
+
+### Fixed
+- **Opening the sidebar (Hide / On hover) now slides the page away from it on every side.** With the bar on the right the page
+  only narrowed from its right edge (cards and title stayed put), and with the bar at the bottom nothing moved at all, so the bar
+  covered the content. The page now slides left for a right-hand bar, up for a bottom bar, down for a top bar and right for a
+  left bar. A strip of the page at the far edge is pushed out of view while the bar is open, which is what a push-menu does.
+- **Esc, or a click on the page, closes a bar opened with the menu button** (on the right the button itself slides out of view).
+- Tests: 8 new cases check that the cards move away from the bar by about its thickness, never sit under it, and come back.
+
 ## Unreleased · Sidebar position
 
 ### Added

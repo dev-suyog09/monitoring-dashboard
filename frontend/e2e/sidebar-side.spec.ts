@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { closePanel, openSettings, start } from './helpers';
+import { closePanel, customerRows, openSettings, start } from './helpers';
 
 /** Settings → Navigation → Sidebar position: left (default), right, top, bottom, with every sidebar mode. */
 const SIDES = ['left', 'right', 'top', 'bottom'] as const;
@@ -116,6 +116,76 @@ test.describe('Sidebar position', () => {
       }).toBe(true);
       await page.mouse.move(vw / 2, vh / 2);
       await expect(page.locator('.side-nav')).not.toHaveClass(/side-peek/, { timeout: 3000 });
+    });
+  }
+
+  for (const mode of ['hidden', 'hover'] as const)
+    for (const side of SIDES) {
+      test(`${side} + ${mode}: opening the bar slides the page away from it, closing slides it back`, async ({ page }) => {
+        await start(page, { settings: { sidebarSide: side, sidebar: mode } });
+        const { width: vw, height: vh } = vp(page);
+        const pos = () => page.evaluate(() => { const b = document.querySelector('.mstrip')!.getBoundingClientRect(); return { x: b.x, y: b.y }; });
+        const before = await pos();
+        if (mode === 'hidden') await page.locator('.hdr-burger').click();
+        else {
+          const edge = { left: [3, vh / 2], right: [vw - 3, vh / 2], top: [vw / 2, 3], bottom: [vw / 2, vh - 3] }[side];
+          await page.mouse.move(edge[0]!, edge[1]!);
+        }
+        await expect(page.locator('.page')).toHaveClass(/page-shift/);
+        // the cards move AWAY from the bar by about the bar's thickness
+        await expect.poll(async () => {
+          const a = await pos();
+          const dx = a.x - before.x;
+          const dy = a.y - before.y;
+          return { left: dx > 60, right: dx < -60, top: dy > 60, bottom: dy < -60 }[side];
+        }).toBe(true);
+        // and they never sit under the bar
+        const nav = await box(page, '.side-nav');
+        const card = await box(page, '.mstrip');
+        if (side === 'left') expect(card.x).toBeGreaterThanOrEqual(nav.x + nav.width - 1);
+        if (side === 'right') expect(card.x + card.width).toBeLessThanOrEqual(nav.x + 1 + vw); // slid, so it may extend past the left edge but never into the bar
+        if (side === 'top') expect(card.y).toBeGreaterThanOrEqual(nav.y + nav.height - 1);
+        // back where it was when the bar closes
+        if (mode === 'hidden') await page.keyboard.press('Escape');
+        else await page.mouse.move(vw / 2, vh / 2);
+        await expect(page.locator('.page')).not.toHaveClass(/page-shift/, { timeout: 4000 });
+        await expect.poll(async () => {
+          const a = await pos();
+          return Math.abs(a.x - before.x) < 2 && Math.abs(a.y - before.y) < 2;
+        }).toBe(true);
+      });
+    }
+
+  test('a bar opened with the menu button closes on Esc or when the page is clicked', async ({ page }) => {
+    await start(page, { settings: { sidebarSide: 'right', sidebar: 'hidden' } });
+    await page.locator('.hdr-burger').click();
+    await expect(page.locator('.side-nav')).toHaveClass(/side-open/);
+    await page.keyboard.press('Escape');
+    await expect(page.locator('.side-nav')).not.toHaveClass(/side-open/);
+    await page.locator('.hdr-burger').click();
+    await expect(page.locator('.side-nav')).toHaveClass(/side-open/);
+    await page.locator('.dtable').first().click({ position: { x: 5, y: 5 }, force: true });
+    await expect(page.locator('.side-nav')).not.toHaveClass(/side-open/);
+  });
+
+  for (const side of SIDES) {
+    test(`${side}: a side panel covers the sidebar, never the other way round (and its close button stays clickable)`, async ({ page }) => {
+      await start(page, { settings: { sidebarSide: side }, theme: 'macosglass' });
+      await customerRows(page).first().dblclick();
+      await expect(page.locator('.sheet')).toBeVisible();
+      await page.waitForTimeout(700); // the panel finishes sliding in
+      // what is on top at the sidebar's centre, and at the panel's close button
+      const top = await page.evaluate(() => {
+        const nav = document.querySelector('.side-nav')!.getBoundingClientRect();
+        const at = document.elementFromPoint(nav.x + nav.width / 2, nav.y + nav.height / 2);
+        const close = document.querySelector('.sheet .icirc')!.getBoundingClientRect();
+        const onClose = document.elementFromPoint(close.x + close.width / 2, close.y + close.height / 2);
+        return { navCovered: !!at?.closest('.drawer, .drawer-backdrop'), closeOk: !!onClose?.closest('.icirc') };
+      });
+      expect(top.navCovered, 'the sidebar is under the panel / backdrop').toBe(true);
+      expect(top.closeOk, 'nothing sits on the close button').toBe(true);
+      await page.locator('.sheet .icirc').click();
+      await expect(page.locator('.sheet')).toHaveCount(0);
     });
   }
 

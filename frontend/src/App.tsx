@@ -117,6 +117,20 @@ export default function App() {
   };
   const [sideOpen, setSideOpen] = useState(false);
   const [peek, setPeek] = useState(false); // sidebar "on hover" mode: slid out
+  useEffect(() => {
+    if (!sideOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Element | null;
+      if (!t?.closest('.side-nav, .hdr-burger')) setSideOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setSideOpen(false);
+    document.addEventListener('mousedown', onDown);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDown);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [sideOpen]);
   const peekTimer = useRef<number | undefined>(undefined);
   const peekOn = () => {
     window.clearTimeout(peekTimer.current);
