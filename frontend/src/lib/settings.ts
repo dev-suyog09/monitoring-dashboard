@@ -4,6 +4,8 @@ import { useEffect, useSyncExternalStore } from 'react';
 export interface Settings {
   /** pinned = always visible, hidden = off until the ☰ button is pressed, hover = slides out from the left edge. */
   sidebar: 'pinned' | 'hidden' | 'hover';
+  /** Which edge the sidebar sits on (phones always use the bottom bar). */
+  sidebarSide: 'left' | 'right' | 'top' | 'bottom';
   density: 'comfortable' | 'compact';
   /** Accent colour override ('' = the theme's own). */
   accent: string;
@@ -23,6 +25,7 @@ export interface Settings {
 
 export const DEFAULTS: Settings = {
   sidebar: 'pinned',
+  sidebarSide: 'left',
   density: 'comfortable',
   accent: '',
   reduceMotion: false,
@@ -108,6 +111,7 @@ export function useSettings(): Settings {
 function applyToDom(s: Settings): void {
   const root = document.documentElement;
   root.setAttribute('data-sidebar', s.sidebar);
+  root.setAttribute('data-side', ['left', 'right', 'top', 'bottom'].includes(s.sidebarSide) ? s.sidebarSide : 'left');
   root.setAttribute('data-density', s.density);
   root.setAttribute('data-charts', s.charts3d ? '3d' : 'flat');
   root.setAttribute('data-motion', s.reduceMotion ? 'reduced' : 'full');
@@ -138,5 +142,5 @@ if (typeof window !== 'undefined') {
 export function useApplySettings(s: Settings): void {
   useEffect(() => {
     applyToDom(s);
-  }, [s.sidebar, s.density, s.reduceMotion, s.accent, s.charts3d]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [s.sidebar, s.sidebarSide, s.density, s.reduceMotion, s.accent, s.charts3d]); // eslint-disable-line react-hooks/exhaustive-deps
 }

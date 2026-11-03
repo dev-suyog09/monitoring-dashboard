@@ -433,7 +433,8 @@ async function checklistTick(now = new Date()): Promise<void> {
     const date = cfg.checkDate ?? todayStr(now);
     const link = `http://localhost:${cfg.port}/`;
     const channels: { name: 'email' | 'teams'; on: boolean; send: (todo: ReturnType<typeof pending>, slot: string) => Promise<void> }[] = [
-      { name: 'email', on: isEmail(checklist.email), send: (todo, slot) => sendMail(checklist.email, buildMail(todo, slot, date, link)) },
+      // email is only attempted when the server has mail settings; otherwise a saved address would fail (and log) every minute
+      { name: 'email', on: isEmail(checklist.email) && mailConfigured(), send: (todo, slot) => sendMail(checklist.email, buildMail(todo, slot, date, link)) },
       { name: 'teams', on: isTeamsUrl(checklist.teamsUrl), send: (todo, slot) => sendTeams(checklist.teamsUrl, buildTeams(todo, slot, date, link)) },
     ];
     for (const ch of channels.filter((c) => c.on)) {

@@ -1,0 +1,65 @@
+/* Sidebar position: left (the default), right, top or bottom. Settings → Navigation → Sidebar position.
+   Phones (860px and narrower) always use the bottom bar, so none of this applies there. It works together with the
+   sidebar modes (always show / on hover / hide) and with every theme. */
+@media (min-width: 861px) {
+  /* ───────── right ───────── */
+  html[data-side='right'] .page { flex-direction: row-reverse; padding: 14px 0 14px 14px; }
+  html[data-side='right'] .side-nav { margin: 0 14px 0 6px; }
+  html[data-side='right'][data-sidebar='hidden'] .page,
+  html[data-side='right'][data-sidebar='hover'] .page { padding: 14px; }
+  html[data-side='right'][data-sidebar='hover'] .page { padding-right: 24px; }
+  html[data-side='right'][data-sidebar='hidden'] .side-nav,
+  html[data-side='right'][data-sidebar='hover'] .side-nav { left: auto; right: 0; margin: 0 14px 0 0; }
+  html[data-side='right'][data-sidebar='hidden'] .side-nav:not(.side-open),
+  html[data-side='right'][data-sidebar='hover'] .side-nav:not(.side-peek) { transform: translateX(calc(100% + 30px)); }
+  html[data-side='right'] .side-zone { left: auto; right: 0; }
+  html[data-side='right'] .side-zone::after { left: auto; right: 6px; }
+  html[data-side='right'][data-sidebar] .page-shift .dash { margin-left: 0; margin-right: 86px; }
+  html[data-side='right'][data-sidebar='hidden'] .dash, html[data-side='right'][data-sidebar='hover'] .dash { transition: margin-right 0.32s var(--ease-out); }
+
+  /* ───────── top and bottom: the sidebar becomes a horizontal bar ───────── */
+  html:is([data-side='top'], [data-side='bottom']) .page { flex-direction: column; }
+  html:is([data-side='top'], [data-side='bottom']) .side-nav { width: auto; height: auto; flex-direction: row; align-items: center; gap: 14px; padding: 8px 14px; border-radius: 22px; align-self: stretch; }
+  html:is([data-side='top'], [data-side='bottom']) .side-nav::before { display: none; } /* the macOS window dots belong on a vertical bar */
+  html:is([data-side='top'], [data-side='bottom']) .side-logo { width: 40px; height: 40px; border-radius: 13px; }
+  html:is([data-side='top'], [data-side='bottom']) .side-items { flex-direction: row; flex: 1; width: auto; margin: 0; gap: 6px; justify-content: flex-start; flex-wrap: wrap; }
+  html:is([data-side='top'], [data-side='bottom']) .side-item { flex-direction: row; gap: 9px; padding: 9px 15px; border-radius: 14px; }
+  html:is([data-side='top'], [data-side='bottom']) .side-label { font-size: 12.5px; }
+  html:is([data-side='top'], [data-side='bottom']) .side-gear { margin: 0 0 0 auto; width: auto; }
+  html:is([data-side='top'], [data-side='bottom']) .side-live { margin: 0 0 0 4px; flex-direction: row; gap: 7px; }
+  html:is([data-side='top'], [data-side='bottom']) .side-badge { top: -8px; right: -10px; }
+
+  /* top */
+  html[data-side='top'] .page { padding: 14px; }
+  html[data-side='top'] .side-nav { position: sticky; top: 14px; margin: 0 0 14px; z-index: 50; }
+  /* bottom: fixed to the bottom edge, with room left under the content */
+  html[data-side='bottom'] .page { padding: 14px 14px 108px; }
+  html[data-side='bottom'] .side-nav { position: fixed; left: 14px; right: 14px; bottom: 14px; top: auto; margin: 0; z-index: 50; }
+
+  /* top / bottom with "on hover" or "hide": the bar slides in from its own edge */
+  html[data-side='top'][data-sidebar='hidden'] .side-nav, html[data-side='top'][data-sidebar='hover'] .side-nav {
+    position: fixed; left: 14px; right: 14px; top: 14px; bottom: auto; margin: 0; z-index: 60;
+  }
+  html[data-side='bottom'][data-sidebar='hidden'] .side-nav, html[data-side='bottom'][data-sidebar='hover'] .side-nav {
+    position: fixed; left: 14px; right: 14px; bottom: 14px; top: auto; margin: 0; z-index: 60;
+  }
+  html[data-side='top'][data-sidebar='hidden'] .side-nav:not(.side-open),
+  html[data-side='top'][data-sidebar='hover'] .side-nav:not(.side-peek) { transform: translateY(calc(-100% - 30px)); }
+  html[data-side='bottom'][data-sidebar='hidden'] .side-nav:not(.side-open),
+  html[data-side='bottom'][data-sidebar='hover'] .side-nav:not(.side-peek) { transform: translateY(calc(100% + 30px)); }
+  html[data-side='top'][data-sidebar='hidden'] .page, html[data-side='bottom'][data-sidebar='hidden'] .page { padding: 14px; }
+  html[data-side='top'][data-sidebar='hover'] .page { padding: 24px 14px 14px; }
+  html[data-side='bottom'][data-sidebar='hover'] .page { padding: 14px 14px 24px; }
+
+  /* the thin hover strip sits on the matching edge */
+  html:is([data-side='top'], [data-side='bottom']) .side-zone { left: 0; right: 0; width: auto; height: 26px; }
+  html[data-side='top'] .side-zone { top: 0; bottom: auto; }
+  html[data-side='bottom'] .side-zone { bottom: 0; top: auto; }
+  html:is([data-side='top'], [data-side='bottom']) .side-zone::after { left: 50%; top: 50%; width: 64px; height: 5px; margin: -2px 0 0 -32px; }
+  html:is([data-side='top'], [data-side='bottom']) .side-zone:hover::after { transform: scaleX(1.2); }
+
+  /* content makes room when the hidden / hover bar is open (it pushes instead of covering) */
+  html[data-side='top'][data-sidebar] .page-shift .dash { margin-left: 0; margin-top: 78px; }
+  html[data-side='bottom'][data-sidebar] .page-shift .dash { margin-left: 0; margin-bottom: 78px; }
+  html:is([data-side='top'], [data-side='bottom']) .dash { transition: margin 0.32s var(--ease-out); }
+}

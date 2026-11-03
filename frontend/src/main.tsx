@@ -8,6 +8,7 @@ import '@fontsource/plus-jakarta-sans/800.css';
 import App from './App';
 import './index.css';
 import './motion.css';
+import './sidebar-side.css';
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

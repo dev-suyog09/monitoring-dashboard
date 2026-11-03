@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import SidePanel from './SidePanel';
 import { THEMES, type Mode } from '../lib/theme';
 import { ACCENTS, resetSettings, updateSettings, type Settings } from '../lib/settings';
+import { smooth } from '../lib/transition';
 import { playChime, TUNES } from '../lib/chime';
 
 function Group({ icon, title, hint, children }: { icon: string; title: string; hint?: string; children: ReactNode }) {
@@ -134,6 +135,18 @@ export default function SettingsPanel({
               { id: 'pinned', label: 'Always show' },
               { id: 'hover', label: 'On hover' },
               { id: 'hidden', label: 'Hide' },
+            ]}
+          />
+        </Row>
+        <Row label="Sidebar position" hint="Left, right, top or bottom of the screen. On phones the bar is always at the bottom">
+          <Segmented
+            value={settings.sidebarSide}
+            onChange={(v) => smooth(() => set({ sidebarSide: v }))}
+            options={[
+              { id: 'left', label: '◧ Left' },
+              { id: 'right', label: 'Right ◨' },
+              { id: 'top', label: '⬒ Top' },
+              { id: 'bottom', label: '⬓ Bottom' },
             ]}
           />
         </Row>

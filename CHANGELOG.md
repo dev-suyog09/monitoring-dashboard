@@ -15,6 +15,16 @@ The format follows [Keep a Changelog](https://keepachangelog.com/).
 - **CSV export** neutralises spreadsheet formulas in names that start with `=`, `+`, `-` or `@`.
 - `SECURITY.md` documents the new endpoints, the Teams secret handling and the remaining risks.
 
+## Unreleased · Sidebar position
+
+### Added
+- **Settings → Navigation → Sidebar position:** put the sidebar on the **left** (default), **right**, **top** or **bottom** of the
+  screen. Top and bottom turn it into a horizontal bar (logo, tabs with their labels beside the icons, Settings and the live dot);
+  left and right keep the floating vertical card. It works with all three sidebar modes (always show, on hover, hide: the bar
+  slides in from its own edge, and the hover strip sits on that edge), with every theme (the macOS window dots are dropped on a
+  horizontal bar), and the change cross-fades. Phones (860 px and narrower) always keep the bottom bar. *Reset* puts it back on the left.
+- Tests: `sidebar-side.spec.ts` covers every side in every mode.
+
 ## Unreleased · One-command setup for teammates
 
 ### Added
