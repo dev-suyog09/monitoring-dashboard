@@ -17,7 +17,7 @@
     "@azure/storage-blob": "^12.26.0",
     "@azure/storage-file-share": "^12.33.0",
     "compression": "^1.8.2",
-    "dotenv": "^16.4.7",
+    "dotenv": "^18.0.9",
     "express": "^4.21.2",
     "nodemailer": "^10.2.1"
   },
