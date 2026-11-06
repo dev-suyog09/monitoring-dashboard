@@ -153,8 +153,15 @@ export default function DetailDrawer({
                       <span className="truncate font-mono text-xs font-semibold" style={{ color: 'var(--text-1)' }}>
                         {cf.name}
                       </span>
-                      <span className={`chip ${cf.todayExists ? 'st-ok' : 'st-warn'}`}>
-                        {cf.todayExists ? 'today ✓' : 'no today'}
+                      <span className="flex shrink-0 items-center gap-1.5">
+                        {cf.source && cf.source !== 'blob' && (
+                          <span className="chip" title="Archived calls are stored on a classic Azure file share, not in a blob container">
+                            {cf.source === 'both' ? 'blob + file share' : 'file share'}
+                          </span>
+                        )}
+                        <span className={`chip ${cf.todayExists ? 'st-ok' : 'st-warn'}`}>
+                          {cf.todayExists ? 'today ✓' : 'no today'}
+                        </span>
                       </span>
                     </div>
                     <div className="flex flex-wrap gap-1.5">

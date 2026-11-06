@@ -135,7 +135,8 @@ All values are optional except how to find accounts (`STORAGE_DISCOVER` or `STOR
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `3001` | Backend / UI port |
-| `ARCHIVE_CONTAINER` | `archive` | Container checked on each SRD account |
+| `ARCHIVE_CONTAINER` | `archive` | Blob container checked on each SRD account |
+| `ARCHIVE_SHARE` | same as `ARCHIVE_CONTAINER` | Classic Azure **file share** checked alongside the container (calls on some accounts, e.g. FBP, are archived there). Set it empty to skip file shares |
 | `CHECK_TIMEOUT_MS` | `15000` | Per-account timeout before it is marked errored |
 | `STORAGE_DISCOVER` | `false` (`true` in `.env.example`) | Auto-discover accounts by name suffix |
 | `DISCOVER_SUFFIX` | `srd01` | Suffix to match when discovering |

@@ -1,4 +1,5 @@
 import { BlobServiceClient, StorageSharedKeyCredential } from '@azure/storage-blob';
+import { ShareServiceClient, StorageSharedKeyCredential as ShareKeyCredential } from '@azure/storage-file-share';
 import { AzureCliCredential, DefaultAzureCredential } from '@azure/identity';
 import type { AccessToken, TokenCredential } from '@azure/identity';
 import { StorageManagementClient } from '@azure/arm-storage';
@@ -256,10 +257,12 @@ export async function buildAccountClients(cfg: AppConfig): Promise<AccountClient
         const key = await fetchAccountKey(cred, loc as Required<Location>);
         const shared = new StorageSharedKeyCredential(loc.name, key);
         const service = new BlobServiceClient(`https://${loc.name}.blob.core.windows.net`, shared);
+        const shares = cfg.share ? new ShareServiceClient(`https://${loc.name}.file.core.windows.net`, new ShareKeyCredential(loc.name, key)) : null;
         byName.set(loc.name, {
           accountName: loc.name,
           auth: 'runtime-key',
           getArchiveContainer: () => service.getContainerClient(cfg.container),
+          ...(shares ? { getArchiveShare: () => shares.getShareClient(cfg.share) } : {}),
         });
       } catch (err) {
         byName.set(loc.name, erroredClient(loc.name, friendlyError(err)));
@@ -292,10 +295,12 @@ export async function buildAccountClients(cfg: AppConfig): Promise<AccountClient
     const accountName = /AccountName=([^;]+)/i.exec(conn)?.[1] ?? 'unknown';
     if (byName.has(accountName)) continue;
     const service = BlobServiceClient.fromConnectionString(conn);
+    const shares = cfg.share ? ShareServiceClient.fromConnectionString(conn) : null;
     byName.set(accountName, {
       accountName,
       auth: 'connection-string',
       getArchiveContainer: () => service.getContainerClient(cfg.container),
+      ...(shares ? { getArchiveShare: () => shares.getShareClient(cfg.share) } : {}),
     });
   }
 

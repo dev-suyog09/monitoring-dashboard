@@ -12,6 +12,8 @@
 export interface AppConfig {
   port: number;
   container: string;
+  /** Classic Azure file share checked alongside the blob container (same name by default). Empty = skip file shares. */
+  share: string;
   identityAccounts: string[];
   connectionStrings: string[];
   /** Max time to spend querying a single account before marking it errored. */
@@ -57,6 +59,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
   return {
     port: Number(env.PORT ?? 3001),
     container: (env.ARCHIVE_CONTAINER ?? 'archive').trim(),
+    share: (env.ARCHIVE_SHARE ?? env.ARCHIVE_CONTAINER ?? 'archive').trim(),
     identityAccounts,
     connectionStrings,
     checkTimeoutMs: Number(env.CHECK_TIMEOUT_MS ?? 15000),

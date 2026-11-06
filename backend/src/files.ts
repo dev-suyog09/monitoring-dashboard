@@ -1,4 +1,5 @@
 import type { ContainerClient } from '@azure/storage-blob';
+import type { ShareClient } from '@azure/storage-file-share';
 import type { ArchiveFile, FileKind } from './types.js';
 
 export const LATEST_CAP = 5;
@@ -34,6 +35,8 @@ class TopN {
 }
 
 export interface LatestFiles {
+  /** True when only the newest part of the day was read (a share day holds many time folders). */
+  partial?: boolean;
   totals: Record<FileKind, number>;
   chat: ArchiveFile[];
   media: ArchiveFile[];
@@ -106,4 +109,50 @@ export async function listLatestFiles(
   }
 
   return pickLatest(all, cap);
+}
+
+/** On a file share a day is split into HH_MM time folders; this many of the newest are read per request. */
+export const SHARE_TIME_FOLDERS = 60;
+const SHARE_CONCURRENCY = 8;
+
+/**
+ * Latest files for a day on a classic file share: `{capture}/{date}/{HH_MM}/{guid}.json|.mp4`.
+ * Reads the newest time folders (and any files sitting directly in the date folder); when the day has
+ * more time folders than that, the result is flagged `partial` so the totals read as "at least".
+ */
+export async function listLatestFilesShare(
+  share: ShareClient,
+  capture: string,
+  date: string,
+  abortSignal?: AbortSignal,
+  cap = LATEST_CAP,
+): Promise<LatestFiles> {
+  const dir = share.getDirectoryClient(`${capture}/${date}`);
+  const direct: ArchiveFile[] = [];
+  const timeFolders: string[] = [];
+  for await (const item of dir.listFilesAndDirectories({ abortSignal })) {
+    if (item.kind === 'directory') timeFolders.push(item.name);
+    else direct.push(toArchiveFile(item.name, item.properties.contentLength, item.properties.lastWriteTime ?? item.properties.lastModified));
+  }
+  timeFolders.sort((a, b) => b.localeCompare(a));
+  const wanted = timeFolders.slice(0, SHARE_TIME_FOLDERS);
+
+  const all: ArchiveFile[] = [...direct];
+  let i = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(SHARE_CONCURRENCY, wanted.length) }, async () => {
+      while (i < wanted.length) {
+        const folder = wanted[i++]!;
+        const sub = dir.getDirectoryClient(folder);
+        for await (const item of sub.listFilesAndDirectories({ abortSignal, includeTimestamps: true })) {
+          if (item.kind === 'file') all.push(toArchiveFile(item.name, item.properties.contentLength, item.properties.lastWriteTime ?? item.properties.lastModified));
+        }
+      }
+    }),
+  );
+  return { ...pickLatest(all, cap), ...(timeFolders.length > wanted.length ? { partial: true } : {}) };
+}
+
+function toArchiveFile(name: string, size: number | undefined, modified: Date | undefined): ArchiveFile {
+  return { name, kind: classifyFile(name), sizeBytes: size ?? 0, lastModified: (modified ?? new Date(0)).toISOString() };
 }

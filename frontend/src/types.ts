@@ -1,8 +1,12 @@
 export type AuthMode = 'runtime-key' | 'identity' | 'connection-string';
 export type Status = 'healthy' | 'missing_today' | 'no_data' | 'error';
 
+/** Where archived calls live: a blob container, a classic file share, or both. */
+export type ArchiveSource = 'blob' | 'file-share' | 'both';
+
 export interface CaptureFolder {
   name: string;
+  source?: ArchiveSource;
   todayExists: boolean;
   latestDate: string | null;
   recentDates: string[];
@@ -17,6 +21,8 @@ export interface CheckResult {
   capturesTotal: number;
   captureFolders: CaptureFolder[];
   error: string | null;
+  /** Where this account's archive was found. */
+  source?: ArchiveSource;
   /** Subscription (customer) the account belongs to. */
   subscriptionId?: string;
   subscription?: string;
@@ -85,6 +91,8 @@ export interface FilesResponse {
   date: string;
   generatedAt: string;
   cached: boolean;
+  /** True when only the newest part of the day was read (file-share days are split into many time folders). */
+  partial?: boolean;
   totals: Record<FileKind, number>;
   chat: ArchiveFile[];
   media: ArchiveFile[];

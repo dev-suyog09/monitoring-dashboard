@@ -7,10 +7,10 @@ import express from 'express';
 import compression from 'compression';
 import { loadConfig } from './config.js';
 import { buildAccountClients, mgmtCredential } from './azure.js';
-import { checkAccount, todayStr, setEgressIp, friendlyError } from './checker.js';
+import { checkAccount, todayStr, setEgressIp, friendlyError, isNotFound } from './checker.js';
 import { checkBotStorage } from './bot.js';
 import { AGGS, checkCalls, checkSeries, HOUR_CHOICES, isGuid, METRIC_NAMES, RANGE_HOURS, type Agg, type CallsResponse, type SeriesResponse } from './calls.js';
-import { listLatestFiles } from './files.js';
+import { listLatestFiles, listLatestFilesShare, type LatestFiles } from './files.js';
 import { InfraStore } from './infra.js';
 import { csrfGuard, hostGuard, rateLimiter, securityHeaders } from './security.js';
 import { readCache, writeCacheSoon } from './cache.js';
@@ -564,7 +564,19 @@ app.get('/api/files', async (req, res) => {
   if (!job) {
     job = (async () => {
       const signal = AbortSignal.timeout(FILES_TIMEOUT_MS);
-      const latest = await listLatestFiles(client.getArchiveContainer(), capture, date, signal);
+      // Blob container first; the same capture/date on the classic file share when the container has nothing.
+      const none: LatestFiles = { totals: { chat: 0, media: 0, other: 0 }, chat: [], media: [], other: [] };
+      const share = client.getArchiveShare;
+      let latest = await listLatestFiles(client.getArchiveContainer(), capture, date, signal).catch((err) => {
+        if (share && isNotFound(err)) return none;
+        throw err;
+      });
+      if (share && latest.totals.chat + latest.totals.media + latest.totals.other === 0) {
+        latest = await listLatestFilesShare(share(), capture, date, signal).catch((err) => {
+          if (isNotFound(err)) return none;
+          throw err;
+        });
+      }
       const data: FilesResponse = {
         accountName: account,
         capture,

@@ -197,7 +197,8 @@ Open **http://localhost:3000**.
 | Variable | Default | Purpose |
 |---|---|---|
 | `PORT` | `3001` | Backend port |
-| `ARCHIVE_CONTAINER` | `archive` | Container name checked on each account |
+| `ARCHIVE_CONTAINER` | `archive` | Blob container name checked on each account |
+| `ARCHIVE_SHARE` | same as `ARCHIVE_CONTAINER` | Classic Azure file share checked as well (some accounts archive there). Empty = skip |
 | `CHECK_TIMEOUT_MS` | `15000` | Max time per account before it's marked errored |
 | `STORAGE_DISCOVER` | `true` | Auto-discover accounts by name suffix |
 | `DISCOVER_SUFFIX` | `srd01` | Suffix to match when discovering |

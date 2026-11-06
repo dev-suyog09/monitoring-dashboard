@@ -4,7 +4,23 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
-## Unreleased · Security review of the new features
+## Unreleased · Archive check also reads classic file shares
+
+### Fixed
+- **Archive check missed calls archived on a classic Azure file share.** It only looked in the blob container `archive`, so an
+  account such as `fbpprdukssasrd01` (calls land in the `archive` file share, the blob container is empty) showed *No data*.
+  Each account is now read in both places (`{capture}/{yyyy-mm-dd}/…`), the results are merged, and a capture folder shows a
+  **file share** badge when it lives there. A missing container or share is not an error; if one place cannot be read
+  (firewall, permissions) and the other has nothing for today, the account shows the error instead of a false "missing today".
+- **Latest files** also works for file-share days (`HH_MM` time folders, newest 60 read; the totals are marked "at least" when the
+  day is larger).
+
+### Added
+- `ARCHIVE_SHARE` setting (defaults to the container name; empty turns the file-share check off) and the
+  `@azure/storage-file-share` dependency.
+- `backend/src/archive-share.test.ts` (10 tests).
+
+## Security review of the new features
 
 ### Fixed
 - **Dependencies:** applied the compatible fixes for two high-severity advisories (`body-parser` denial of service, which started

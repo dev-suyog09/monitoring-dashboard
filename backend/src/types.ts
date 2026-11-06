@@ -1,4 +1,5 @@
 import type { ContainerClient } from '@azure/storage-blob';
+import type { ShareClient } from '@azure/storage-file-share';
 
 /** How we authenticated to a given storage account. */
 export type AuthMode = 'runtime-key' | 'identity' | 'connection-string';
@@ -9,6 +10,8 @@ export interface AccountClient {
   auth: AuthMode;
   /** Returns a client for the archive container (lazily, per request). */
   getArchiveContainer: () => ContainerClient;
+  /** Returns a client for the classic file share with the same archive layout (absent when file shares are off). */
+  getArchiveShare?: () => ShareClient;
   /** Bot storage accounts belonging to the same tenant/region (matched by resource-group prefix). */
   botTargets?: BotTarget[];
   /** Subscription the storage account lives in (from discovery), for the per-customer view. */
@@ -28,9 +31,14 @@ export type Status =
   | 'no_data'          // no capture folders at all
   | 'error';           // could not read the account (auth / network / missing container)
 
+/** Where archived calls live: a blob container, a classic file share, or both. */
+export type ArchiveSource = 'blob' | 'file-share' | 'both';
+
 /** One "capture" folder sitting at the root of the archive container. */
 export interface CaptureFolder {
   name: string;
+  /** Which storage holds this capture folder. */
+  source?: ArchiveSource;
   todayExists: boolean;
   latestDate: string | null;
   recentDates: string[]; // newest first, capped
@@ -45,6 +53,8 @@ export interface CheckResult {
   capturesTotal: number;
   captureFolders: CaptureFolder[];
   error: string | null;
+  /** Where this account's archive was found (absent when there is no archive at all). */
+  source?: ArchiveSource;
   /** Subscription (customer) the account belongs to. */
   subscriptionId?: string;
   subscription?: string;

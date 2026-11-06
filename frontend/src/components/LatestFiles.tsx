@@ -105,6 +105,11 @@ export default function LatestFiles({ account, capture, date }: { account: strin
         <div className="flex flex-col gap-3">
           <FileList title="Chat (.chat)" icon="💬" files={data.chat} total={data.totals.chat} />
           <FileList title="Media (.mp3)" icon="🎧" files={data.media} total={data.totals.media} />
+          {data.partial && (
+            <div className="text-[10px]" style={{ color: 'var(--text-3)' }}>
+              Counts cover the newest time folders of the day only (file share), so the real totals are at least this high.
+            </div>
+          )}
           {data.totals.other > 0 && (
             <div className="text-[10px]" style={{ color: 'var(--text-3)' }}>
               + {data.totals.other} other file{data.totals.other === 1 ? '' : 's'} (metadata .json etc., not listed)
