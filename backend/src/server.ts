@@ -73,6 +73,10 @@ let snapshot: CheckResponse | null = null;
  * the real scan runs in the background and replaces it. Its generatedAt stays the time it was really gathered.
  */
 function restoreSnapshot(): void {
+  if (process.env.FRESH_START === '1') {
+    console.log('[startup] fresh start: ignoring the saved scan, the first real scan is run before the page shows results');
+    return;
+  }
   const saved = readCache<CheckResponse>('snapshot');
   if (saved && Array.isArray(saved.results) && saved.results.length > 0 && saved.today === (cfg.checkDate ?? todayStr())) {
     snapshot = saved;

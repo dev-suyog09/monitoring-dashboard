@@ -4,6 +4,17 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased · Restart that really restarts
+
+### Fixed
+- **A restart now runs the code on disk.** `start-appops.ps1 -Restart` (also what the 15-minute task runs) rebuilds the backend and the
+  frontend first when their source is newer than the build; before, it started the old `dist` build, so edits only took effect after a manual
+  `npm run build`. A failed build keeps the previous one and is logged in `backend/appops.build.log`.
+
+### Added
+- **`start-appops.ps1 -Fresh`**, a hard restart: as above, plus it ignores the saved scan (`FRESH_START=1`) and waits until the first real
+  scan is done, so the page never shows old results. The scheduled task does not use it (it would show "warming up" every 15 minutes).
+
 ## Unreleased · Archive check also reads classic file shares
 
 ### Fixed
