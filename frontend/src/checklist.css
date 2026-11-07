@@ -105,3 +105,12 @@
   .cx-bell { border-top: none; padding-top: 9px; margin: 0; }
 }
 html[data-motion='reduced'] .cx * { transition: none !important; }
+
+/* On shift / off shift: one switch that pauses every Teams reminder */
+.cx-shift { display: inline-flex; align-items: center; gap: 8px; padding: 7px 14px; border-radius: 999px; font-size: 12.5px; font-weight: 700; cursor: pointer;
+  background: var(--card); color: var(--text-3); border: 1px solid var(--border); transition: background 0.2s, color 0.2s, border-color 0.2s; }
+.cx-shift:hover { border-color: var(--text-3); }
+.cx-shift-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--text-3); transition: background 0.2s, box-shadow 0.2s; }
+.cx-shift.on { background: color-mix(in srgb, var(--ok) 16%, var(--card)); color: var(--ok-fg); border-color: color-mix(in srgb, var(--ok) 40%, var(--border)); }
+.cx-shift.on .cx-shift-dot { background: var(--ok); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ok) 25%, transparent); }
+.cx-shift:focus-visible { outline: 2px solid var(--accent, currentColor); outline-offset: 2px; }

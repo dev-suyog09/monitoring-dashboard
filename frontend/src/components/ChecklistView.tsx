@@ -170,6 +170,18 @@ export default function ChecklistView({
           <h1>{title}</h1>
           <span className="cx-badge mono" title="Still to check">{view === 'done' ? shown.length : shown.filter((i) => !i.done).length}</span>
           <div className="cx-head-actions">
+            <button
+              type="button"
+              role="switch"
+              aria-checked={data.enabled}
+              aria-label="Teams reminders"
+              className={`cx-shift${data.enabled ? ' on' : ''}`}
+              title={data.enabled ? 'Teams reminders are on. Switch off when you are off shift.' : 'Teams reminders are paused. Switch on when your shift starts.'}
+              onClick={() => void saveSettings({ enabled: !data.enabled })}
+            >
+              <span className="cx-shift-dot" aria-hidden="true" />
+              {data.enabled ? 'On shift · Teams on' : 'Off shift · Teams paused'}
+            </button>
             <button className="pill" disabled={shown.every((i) => i.done)} onClick={() => scope.forEach((l) => void toggle(l, null, true))}>
               ✓ Mark all done
             </button>

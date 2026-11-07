@@ -138,6 +138,26 @@ test.describe('Daily checklist', () => {
     await expect(page.locator('.page-eyebrow')).toHaveText(/Customers/i);
   });
 
+  test('on shift / off shift: one switch in the header pauses and resumes the Teams reminders', async ({ page }) => {
+    await start(page);
+    const f = await fakeBackend(page, { email: 'a@b.com' });
+    await openChecklist(page);
+    const sw = page.getByRole('switch', { name: 'Teams reminders' });
+    await expect(sw).toHaveAttribute('aria-checked', 'true');
+    await expect(sw).toContainText('On shift');
+    await sw.click();
+    await expect.poll(() => f.enabled).toBe(false);
+    await expect(sw).toHaveAttribute('aria-checked', 'false');
+    await expect(sw).toContainText('Off shift');
+    await expect(page.locator('.cx-next')).toContainText('off');
+    await page.reload();
+    await page.locator('.side-item', { hasText: 'Checklist' }).first().click();
+    await expect(page.getByRole('switch', { name: 'Teams reminders' })).toHaveAttribute('aria-checked', 'false');
+    await page.getByRole('switch', { name: 'Teams reminders' }).click();
+    await expect.poll(() => f.enabled).toBe(true);
+    await expect(page.getByRole('switch', { name: 'Teams reminders' })).toContainText('On shift');
+  });
+
   // email UI is hidden for now (SHOW_EMAIL in ChecklistView); the backend still supports it
   test.skip('email: invalid addresses are refused, a valid one is saved and shown after a reload', async ({ page }) => {
     await start(page);

@@ -4,6 +4,16 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased · On shift / off shift switch for Teams reminders
+
+### Added
+- **On shift / Off shift switch** in the Checklist header: one click pauses every Teams reminder (and resumes them). It is the same
+  setting as *Send reminders* in the Reminders panel, now one click away.
+
+### Fixed
+- Switching reminders back on no longer sends a reminder that came due while they were off (it used to, within the one-hour grace
+  period); those are skipped and the next scheduled one arrives as normal.
+
 ## Unreleased · Restart that really restarts
 
 ### Fixed

@@ -17,6 +17,21 @@ test('pending lists what is unticked; ticking and unticking work', () => {
   assert.deepEqual(pending(s, '2026-10-23')[0]?.missing, ['bom']);
 });
 
+test('switching reminders back on skips what came due while off shift (nothing is sent late)', () => {
+  const now = at('2026-10-23T03:20:00'); // the 3 AM slot is inside the grace hour
+  let s = setProfile(base(), { enabled: false });
+  s = setProfile(s, { teamsUrl: 'https://prod.logic.azure.com/workflows/x?sig=y' });
+  assert.deepEqual(dueSlots(s, now, 'teams'), ['03:00'], 'it is due, but reminders are off so nothing sends it');
+  const on = setProfile(s, { enabled: true }, '2026-10-23', now);
+  assert.equal(on.enabled, true);
+  assert.deepEqual(dueSlots(on, now, 'teams'), [], 'the slot that came due while off is handled, for Teams');
+  assert.deepEqual(dueSlots(on, now, 'email'), [], 'and for email');
+  assert.deepEqual(dueSlots(on, at('2026-10-23T06:05:00'), 'teams'), ['06:00'], 'the next slot after it still comes');
+  assert.deepEqual(dueSlots(on, at('2026-10-24T03:05:00'), 'teams'), ['03:00'], 'and tomorrow is normal');
+  const stillOn = setProfile(on, { enabled: true }, '2026-10-23', at('2026-10-23T06:05:00'));
+  assert.deepEqual(dueSlots(stillOn, at('2026-10-23T06:05:00'), 'teams'), ['06:00'], 'saving "on" while already on skips nothing');
+});
+
 test('only tracked lists are reminded about; empty lists never are', () => {
   let s = setLists(base(), cleanLists([{ name: 'Daily HC', members: ['a'] }, { name: 'Weekly', members: ['b'] }, { name: 'Empty', members: [] }]));
   assert.deepEqual(pending(s, 'd').map((p) => p.name), ['Daily HC', 'Weekly']);

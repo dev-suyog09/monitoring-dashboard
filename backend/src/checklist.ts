@@ -114,7 +114,7 @@ const trimOld = <T extends { date: string }>(rows: T[], today: string): T[] => {
   return rows.filter((r) => r.date >= c);
 };
 
-export function setProfile(s: ChecklistState, body: { email?: unknown; teamsUrl?: unknown; enabled?: unknown; times?: unknown; repeat?: unknown; repeatMinutes?: unknown; tracked?: unknown }, today = todayStr()): ChecklistState {
+export function setProfile(s: ChecklistState, body: { email?: unknown; teamsUrl?: unknown; enabled?: unknown; times?: unknown; repeat?: unknown; repeatMinutes?: unknown; tracked?: unknown }, today = todayStr(), now = new Date()): ChecklistState {
   const next = { ...s };
   if (body.teamsUrl !== undefined) {
     if (body.teamsUrl === '') next.teamsUrl = '';
@@ -143,6 +143,10 @@ export function setProfile(s: ChecklistState, body: { email?: unknown; teamsUrl?
     if (body.tracked === null) next.tracked = null;
     else if (Array.isArray(body.tracked) && body.tracked.length <= 100 && body.tracked.every((n) => typeof n === 'string' && n.length <= 80)) next.tracked = body.tracked as string[];
     else throw new BadInput('Invalid tracked lists.');
+  }
+  // Switched back on (a shift starts): reminders that came due while it was off are skipped, not sent late.
+  if (body.enabled === true && !s.enabled) {
+    for (const ch of ['email', 'teams'] as Channel[]) for (const slot of dueSlots(next, now, ch)) Object.assign(next, markSent(next, todayStr(now), slot, ch));
   }
   next.done = trimOld(next.done, today);
   next.sent = trimOld(next.sent, today);
