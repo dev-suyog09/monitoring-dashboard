@@ -13,20 +13,20 @@
   "dependencies": {
     "@azure/arm-resourcegraph": "^5.0.0",
     "@azure/arm-storage": "^20.1.0",
-    "@azure/identity": "^4.5.0",
-    "@azure/storage-blob": "^12.26.0",
+    "@azure/identity": "^4.14.1",
+    "@azure/storage-blob": "^12.34.0",
     "@azure/storage-file-share": "^12.33.0",
     "compression": "^1.8.2",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
-    "nodemailer": "^10.2.1"
+    "nodemailer": "^10.4.0"
   },
   "devDependencies": {
     "@types/compression": "^1.8.1",
     "@types/express": "^4.17.21",
     "@types/node": "^22.10.0",
     "@types/nodemailer": "^8.0.2",
-    "tsx": "^4.19.2",
+    "tsx": "^4.23.15",
     "typescript": "^5.7.2"
   }
 }
