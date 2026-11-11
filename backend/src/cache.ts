@@ -21,6 +21,30 @@ export function readCache<T>(name: string): T | null {
   }
 }
 
+/**
+ * "Restart backend" in the dashboard is a hard restart: it leaves this marker so the new process ignores the saved scan and
+ * starts from fresh data (the 15-minute scheduled restart does not, so the page never shows "warming up" every time).
+ */
+const FRESH_FLAG = () => file('fresh-start.flag').replace(/\.json$/, '');
+export function markFreshStart(): void {
+  try {
+    fs.mkdirSync(DIR, { recursive: true });
+    fs.writeFileSync(FRESH_FLAG(), new Date().toISOString());
+  } catch {
+    /* without the marker the restart is merely soft: the saved scan is shown first */
+  }
+}
+/** True once after a hard restart was requested (and removes the marker). */
+export function consumeFreshStart(): boolean {
+  try {
+    if (!fs.existsSync(FRESH_FLAG())) return false;
+    fs.unlinkSync(FRESH_FLAG());
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 const timers = new Map<string, NodeJS.Timeout>();
 
 /** Write a value soon (coalescing bursts of writes), atomically: a half-written file is never read back. */

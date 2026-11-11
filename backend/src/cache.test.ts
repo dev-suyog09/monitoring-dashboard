@@ -6,7 +6,7 @@ import { test } from 'node:test';
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sam-cache-'));
 process.env.CACHE_DIR = dir; // read when the module loads
-const { readCache, writeCacheSoon } = await import('./cache.js');
+const { readCache, writeCacheSoon, markFreshStart, consumeFreshStart } = await import('./cache.js');
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -32,4 +32,11 @@ test('no half-written temp files are left behind', async () => {
   writeCacheSoon('clean', { ok: true }, 10);
   await wait(100);
   assert.deepEqual(fs.readdirSync(dir).filter((f) => f.endsWith('.tmp')), []);
+});
+
+test('a hard restart leaves a marker that the next start uses once, and only once', () => {
+  assert.equal(consumeFreshStart(), false, 'no marker: a normal (soft) start');
+  markFreshStart();
+  assert.equal(consumeFreshStart(), true, 'the restarted process sees it');
+  assert.equal(consumeFreshStart(), false, 'and it is gone afterwards, so later restarts are soft again');
 });

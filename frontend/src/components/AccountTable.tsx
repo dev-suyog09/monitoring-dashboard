@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { CheckResult } from '../types';
 import { detectEnv, STATUS_META } from '../lib/ui';
 import { BotChip } from './Badges';
@@ -15,10 +15,17 @@ function coveragePct(r: CheckResult): number {
 export default function AccountTable({
   results,
   onSelect,
+  onOpen,
 }: {
   results: CheckResult[];
+  /** One click: the quick side drawer. */
   onSelect: (r: CheckResult) => void;
+  /** Double-click: the full details panel (archive, bots, databases, concurrent calls). */
+  onOpen?: (r: CheckResult) => void;
 }) {
+  // A single click waits a moment so that a double-click does not first flash the small drawer.
+  const clickTimer = useRef<number | undefined>(undefined);
+  useEffect(() => () => window.clearTimeout(clickTimer.current), []);
   const [sort, setSort] = useState<SortKey>('status');
   const [dir, setDir] = useState<Dir>('asc');
 
@@ -86,7 +93,20 @@ export default function AccountTable({
               '',
             );
             return (
-              <tr key={r.accountName} className={m.scope} onClick={() => onSelect(r)}>
+              <tr
+                key={r.accountName}
+                className={m.scope}
+                style={{ cursor: 'pointer' }}
+                title={onOpen ? 'Click for a quick look, double-click for the full details and concurrent calls' : undefined}
+                onClick={() => {
+                  window.clearTimeout(clickTimer.current);
+                  clickTimer.current = window.setTimeout(() => onSelect(r), onOpen ? 220 : 0);
+                }}
+                onDoubleClick={() => {
+                  window.clearTimeout(clickTimer.current);
+                  (onOpen ?? onSelect)(r);
+                }}
+              >
                 <td className="mono td-name">{r.accountName}</td>
                 <td>
                   <span className={`chip en-${env}`}>{env}</span>

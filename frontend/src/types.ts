@@ -72,6 +72,8 @@ export interface CheckResponse {
   container: string;
   results: CheckResult[];
   warming?: boolean;
+  /** Many accounts failed together: probably the VPN / network, not the accounts. */
+  networkTrouble?: boolean;
   egressIp?: string | null;
   dateOverride?: boolean;
 }

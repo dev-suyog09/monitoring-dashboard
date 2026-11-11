@@ -13,7 +13,8 @@ import { AGGS, checkCalls, checkSeries, HOUR_CHOICES, isGuid, METRIC_NAMES, RANG
 import { listLatestFiles, listLatestFilesShare, type LatestFiles } from './files.js';
 import { InfraStore } from './infra.js';
 import { csrfGuard, hostGuard, rateLimiter, securityHeaders } from './security.js';
-import { readCache, writeCacheSoon } from './cache.js';
+import { consumeFreshStart, markFreshStart, readCache, writeCacheSoon } from './cache.js';
+import { SLOW_RETRY_FACTOR, networkTrouble, nextQuickRetry, restorable, slowAccounts } from './resilience.js';
 import {
   BadInput,
   buildMail,
@@ -66,6 +67,7 @@ async function mapLimit<T, R>(items: T[], limit: number, fn: (item: T) => Promis
 
 let clients: AccountClient[] = [];
 let currentScan: Promise<void> | null = null;
+let quickRetries = 0; // re-scans in a row after a network-wide failure
 let snapshot: CheckResponse | null = null;
 
 /**
@@ -73,14 +75,17 @@ let snapshot: CheckResponse | null = null;
  * the real scan runs in the background and replaces it. Its generatedAt stays the time it was really gathered.
  */
 function restoreSnapshot(): void {
-  if (process.env.FRESH_START === '1') {
+  // a hard restart (start-appops.ps1 -Fresh, or the dashboard's Restart backend button) starts from fresh data
+  if (consumeFreshStart() || process.env.FRESH_START === '1') {
     console.log('[startup] fresh start: ignoring the saved scan, the first real scan is run before the page shows results');
     return;
   }
-  const saved = readCache<CheckResponse>('snapshot');
-  if (saved && Array.isArray(saved.results) && saved.results.length > 0 && saved.today === (cfg.checkDate ?? todayStr())) {
+  const raw = readCache<CheckResponse>('snapshot');
+  // Only what was read successfully: failures from a scan made while the VPN was down must not come back after a restart.
+  const saved = raw && raw.today === (cfg.checkDate ?? todayStr()) ? restorable(raw) : null;
+  if (saved) {
     snapshot = saved;
-    console.log(`[startup] restored the previous scan from ${saved.generatedAt} (${saved.results.length} accounts); refreshing in the background`);
+    console.log(`[startup] restored the previous scan from ${saved.generatedAt} (${saved.results.length} of ${raw!.results.length} accounts, the failed ones left out); refreshing in the background`);
   }
 }
 let egressIp: string | null = null;
@@ -229,6 +234,7 @@ app.post('/api/restart', (req, res) => {
     return;
   }
   restarting = true;
+  markFreshStart(); // the new process then ignores the saved scan: a hard restart means fresh data
   execFile('schtasks', ['/run', '/tn', RESTART_TASK], { windowsHide: true }, (err, _stdout, stderr) => {
     if (err) {
       restarting = false;
@@ -656,8 +662,19 @@ function publish(results: CheckResponse['results'], today: string): void {
     results,
     egressIp,
     dateOverride: !!cfg.checkDate,
+    ...(networkTrouble(results) ? { networkTrouble: true } : {}),
   };
-  writeCacheSoon('snapshot', snapshot); // so the next restart can show it straight away
+  persistSnapshot();
+}
+
+/** Save the scan so the next restart can show it straight away, unless it is mostly failures (VPN down): the last good copy stays. */
+function persistSnapshot(): void {
+  if (!snapshot) return;
+  if (snapshot.networkTrouble) {
+    console.log('[scan] many accounts could not be reached (VPN or network?): this scan is not saved, the last good one is kept');
+    return;
+  }
+  writeCacheSoon('snapshot', snapshot);
 }
 
 // Bot storage ("anything stuck?") lists tens of thousands of files and takes ~45 s, while the archive check of every
@@ -685,7 +702,7 @@ function startBotPhase(today: string): void {
     );
     if (snapshot && snapshot.today === today) {
       snapshot = { ...snapshot, results: snapshot.results.map((r) => (found.has(r.accountName) ? { ...r, bot: found.get(r.accountName) } : r)) };
-      writeCacheSoon('snapshot', snapshot);
+      persistSnapshot();
     }
     console.log(`[scan] bot storage phase finished in ${((Date.now() - t0) / 1000).toFixed(0)}s (${found.size} accounts)`);
   })()
@@ -703,6 +720,18 @@ function startBotPhase(today: string): void {
 function scanOnce(): Promise<void> {
   if (currentScan) return currentScan;
   currentScan = (async () => {
+    // Accounts that could not be set up (no VPN at start-up, keys unreadable) are retried now instead of staying broken until a restart.
+    if (clients.length === 0 || clients.some((c) => c.broken)) {
+      try {
+        const rebuilt = await buildAccountClients(cfg);
+        if (rebuilt.length > 0 && rebuilt.filter((c) => c.broken).length <= clients.filter((c) => c.broken).length) {
+          clients = rebuilt;
+          console.log(`[scan] set up ${rebuilt.length} accounts again (${rebuilt.filter((c) => c.broken).length} still not reachable)`);
+        }
+      } catch (err) {
+        console.error(`Could not set the accounts up again: ${friendlyError(err)}`);
+      }
+    }
     if (clients.length === 0) return;
     await refreshEgressIp();
     const today = cfg.checkDate ?? todayStr();
@@ -714,8 +743,25 @@ function scanOnce(): Promise<void> {
       if (prev) r.bot = prev;
       return r;
     });
+    // an account that merely timed out (a heavy one under load) is tried once more with more time before it is called an error
+    const byName = new Map(clients.map((c) => [c.accountName, c]));
+    await mapLimit(slowAccounts(results), 4, async (r) => {
+      const c = byName.get(r.accountName);
+      if (!c) return;
+      const again = await checkAccount(c, today, cfg.checkTimeoutMs * SLOW_RETRY_FACTOR);
+      if (again.status === 'error') return;
+      again.bot = r.bot;
+      results[results.indexOf(r)] = again;
+    });
     publish(results, today);
     startBotPhase(today);
+    // VPN down (a wave of failures)? Look again in a minute rather than in 15, a few times; the page says what is going on.
+    const retryIn = nextQuickRetry(results, quickRetries);
+    if (retryIn !== null) {
+      quickRetries++;
+      console.log(`[scan] looks like a network / VPN problem; checking again in ${retryIn / 1000}s (try ${quickRetries})`);
+      setTimeout(() => void scanOnce(), retryIn).unref();
+    } else if (!networkTrouble(results)) quickRetries = 0;
   })()
     .catch((err) => console.error(`Scan failed: ${friendlyError(err)}`)) // not the raw error: SDK errors can carry request headers
     .finally(() => {

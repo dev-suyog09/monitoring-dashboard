@@ -123,6 +123,14 @@ export function useAlerts(data: BotsResponse | null) {
     setItems([]);
     persist([]);
   }, []);
+  /** Hard reset (backend restarted): no bell entries, no toasts, and whatever is red afterwards is a quiet new baseline, not "new" alerts. */
+  const reset = useCallback(() => {
+    setItems([]);
+    setToasts([]);
+    redRef.current = {};
+    baselinePending.current = true;
+    saveAlerts({ items: [], red: {} });
+  }, []);
 
   /** Ask the browser for permission once; afterwards alerts also appear as desktop notifications while the tab is hidden. */
   const enableDesktop = useCallback(async () => {
@@ -150,6 +158,7 @@ export function useAlerts(data: BotsResponse | null) {
     markAllRead,
     markRead,
     clear,
+    reset,
     sound,
     toggleSound,
     previewSound: () => playChime(),

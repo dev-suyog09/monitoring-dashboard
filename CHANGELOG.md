@@ -4,6 +4,21 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased · VPN-proof scans, hard restart, Archive details panel
+
+### Added
+- **Archive tab: double-click a row** opens the same full details panel as on Customers (archive today, bot storage, bots, databases and the
+  on-demand **Concurrent calls** section). One click still opens the quick drawer (it now waits about 0.2 s so a double-click does not flash it).
+
+### Fixed
+- **A slow account no longer shows as an error.** An account that only timed out (e.g. one with many capture folders, under the load of a full
+  scan) is tried once more with three times the time before it is called an error; firewall blocks are not retried.
+- **Stale errors after a VPN drop.** A scan in which a quarter or more of the accounts fail is treated as a network problem: it is not saved,
+  a restart never shows failures from an earlier scan, the scan is repeated every minute (up to 10 times) and accounts that could not be set up
+  are set up again without a restart. The page shows a banner ("many locations could not be reached ... probably the VPN") instead of a wall of errors.
+- **"Restart backend" is a hard reset.** The new process ignores its saved scan, and the bell entries, pop-ups and "red" memory of the
+  alerts are cleared once it is back (what is wrong afterwards is a quiet new baseline, not a flood of new alerts).
+
 ## Unreleased · Archive scan no longer times out when DNS is slow
 
 ### Fixed

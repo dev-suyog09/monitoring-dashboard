@@ -147,6 +147,7 @@ function erroredClient(accountName: string, message: string): AccountClient {
   return {
     accountName,
     auth: 'runtime-key',
+    broken: true,
     getArchiveContainer: () => {
       throw new Error(message);
     },

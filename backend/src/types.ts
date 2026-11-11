@@ -10,6 +10,8 @@ export interface AccountClient {
   auth: AuthMode;
   /** Returns a client for the archive container (lazily, per request). */
   getArchiveContainer: () => ContainerClient;
+  /** True for a placeholder made when the account could not be set up (no VPN, keys unreadable): it is rebuilt on the next scan. */
+  broken?: boolean;
   /** Returns a client for the classic file share with the same archive layout (absent when file shares are off). */
   getArchiveShare?: () => ShareClient;
   /** Bot storage accounts belonging to the same tenant/region (matched by resource-group prefix). */
@@ -116,6 +118,8 @@ export interface CheckResponse {
   results: CheckResult[];
   /** True while the first background scan is still running. */
   warming?: boolean;
+  /** True when so many accounts failed together that the VPN / network is the likely cause (not saved, retried every minute). */
+  networkTrouble?: boolean;
   /** This host's public egress IP — the address Azure firewalls see. */
   egressIp?: string | null;
   /** True when the date is overridden for testing (not the live "today"). */

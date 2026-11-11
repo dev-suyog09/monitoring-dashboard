@@ -172,6 +172,7 @@ export default function App() {
   const { reset: resetBots } = bots;
   // Bell + pop-ups: raised when a checked instance newly goes Stopped / Unresponsive.
   const alerts = useAlerts(bots.data);
+  const { reset: resetAlerts } = alerts;
   const fullscreen = useFullscreen();
   const { reset: resetDbs } = dbs;
   const restartingRef = useRef(false);
@@ -241,6 +242,7 @@ export default function App() {
           setLastRefresh(new Date());
           resetBots(); // the backend restarted, so earlier bot / database checks are gone
           resetDbs();
+          resetAlerts(); // a hard reset: the old bell entries and pop-ups go too, the next check starts quietly
           return;
         }
         await sleep(3000);
@@ -252,7 +254,7 @@ export default function App() {
       restartingRef.current = false;
       setRestartMsg(null);
     }
-  }, [resetBots, resetDbs]);
+  }, [resetBots, resetDbs, resetAlerts]);
 
   useEffect(() => {
     load();
@@ -510,7 +512,14 @@ export default function App() {
     }
   }, [scoped, filter, atRiskOnly, atRiskList]);
 
-  const customerDetailRow = customerDetail ? (customerRows.find((r) => r.key === customerDetail.key) ?? null) : null;
+  const customerDetailRow = customerDetail ? (customerRowsAll.find((r) => r.key === customerDetail.key) ?? null) : null;
+  /** Archive tab, double-click: the same full details panel as on Customers (archive, bots, databases, concurrent calls). */
+  const openArchiveAccount = (acc: CheckResult) => {
+    const row = customerRowsAll.find((r) => r.accounts.some((a) => a.accountName === acc.accountName));
+    setSelected(null);
+    if (row) setCustomerDetail({ key: row.key, account: acc.accountName });
+    else setSelected(acc.accountName); // no customer found for it: the small drawer
+  };
   const selectedAccount: CheckResult | null = selected
     ? (results.find((r) => r.accountName === selected) ?? null)
     : null;
@@ -827,6 +836,12 @@ export default function App() {
             <span className="mono">CHECK_DATE</span> from <span className="mono">backend/.env</span> to return to today.
           </div>
         )}
+        {data?.networkTrouble && !data.warming && (
+          <div className="banner banner-err" role="status">
+            ⚠ Many locations could not be reached ({data.results.filter((r) => r.status === 'error').length} of {data.results.length}). That usually means the VPN is
+            disconnected or the network changed, not that the accounts are down. Checking again every minute; this clears by itself once you are back on the VPN.
+          </div>
+        )}
         {data?.warming && (
           <div className="banner banner-warm">
             ⏳ Warming up — running the first scan across all locations. The dashboard fills in automatically.
@@ -936,7 +951,7 @@ export default function App() {
               {terms.length ? 'No accounts match this watchlist and filter.' : 'No accounts match this filter.'}
             </p>
           ) : (
-            <AccountTable results={rows} onSelect={(r) => setSelected(r.accountName)} />
+            <AccountTable results={rows} onSelect={(r) => setSelected(r.accountName)} onOpen={openArchiveAccount} />
           )}
         </Panel>
         </div>
