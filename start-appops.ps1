@@ -23,6 +23,9 @@ if (-not $node) { $node = "C:\Program Files\nodejs\node.exe" }
 
 # 15-minute backend refresh (env vars take precedence over .env).
 $env:REFRESH_MS = '900000'
+# Name lookups (DNS) run on Node's thread pool, which has 4 threads by default. When the network's DNS is slow, the ~200 storage
+# names of a scan queue behind each other and every account times out. 64 lets them run side by side (72 s -> 4 s measured).
+$env:UV_THREADPOOL_SIZE = '64'
 
 # Rebuild a part when any of its source files is newer than its built output.
 function Update-Build($part, $sources, $output) {

@@ -4,6 +4,13 @@ All notable changes to **Godzilla Health Monitor** (NTRX AppOps).
 Newest first. Each entry is one push to `main`; the short hash lets you open the exact commit.
 The format follows [Keep a Changelog](https://keepachangelog.com/).
 
+## Unreleased · Archive scan no longer times out when DNS is slow
+
+### Fixed
+- **Every account showed "Timed out" when the network's DNS was slow.** Name lookups run on Node's 4-thread pool, so the ~200 storage
+  names of a scan queued behind each other and each account hit its 15 s limit (102 lookups took 73 s). `start-appops.ps1` now starts
+  the backend with `UV_THREADPOOL_SIZE=64` (the same lookups take about 4 s). Start the backend some other way and set it yourself.
+
 ## Unreleased · On shift / off shift switch for Teams reminders
 
 ### Added
